@@ -1,18 +1,18 @@
 {
-    "sourceName": "FaselHD (Movies)",
-    "iconUrl": "https://w1.faselhdxwatch.top/favicon.ico",
-    "author": {
-        "name": "Deresh Dev",
-        "icon": "https://w1.faselhdxwatch.top/favicon.ico",
-        "url": "https://t.me/yourTelegram"
-    },
-    "version": "1.0.1",
-    "language": "Arabic",
-    "streamType": "iframe",
-    "quality": "Auto",
-    "baseUrl": "https://w1.faselhdxwatch.top/",
-    "searchBaseUrl": "https://w1.faselhdxwatch.top/?s=%s",
-    "scriptUrl": "https://raw.githubusercontent.com/mxs3/FaselHD/refs/heads/main/FaselHD.js",
-    "type": "movies",
-    "asyncJS": true
+  "sourceName": "FaselHD",
+  "iconUrl": "https://w1.faselhdxwatch.top/favicon.ico",
+  "author": {
+    "name": "Deresh Dev",
+    "icon": "https://w1.faselhdxwatch.top/favicon.ico",
+    "url": "https://t.me/yourTelegram"
+  },
+  "version": "1.0.1",
+  "language": "Arabic",
+  "streamType": "iframe",
+  "quality": "Auto",
+  "baseUrl": "https://w1.faselhdxwatch.top/",
+  "searchBaseUrl": "https://w1.faselhdxwatch.top/?s=%s",
+  "scriptUrl": "https://raw.githubusercontent.com/mxs3/FaselHD/refs/heads/main/FaselHD.js",
+  "type": "movies",
+  "asyncJS": true
 }
