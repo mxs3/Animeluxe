@@ -2,7 +2,6 @@ async function searchResults(keyword) {
     try {
         const encodedKeyword = encodeURIComponent(keyword);
         const html = await soraFetch(`https://w1.faselhdxwatch.top/?s=${encodedKeyword}`);
-
         const matches = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*title="([^"]+)"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"/g)];
 
         const movieData = matches.map(([_, href, title, image]) => ({
