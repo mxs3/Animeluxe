@@ -1,0 +1,18 @@
+{
+  "sourceName": "ArabSeed (Movies)",
+  "iconUrl": "https://arabseed.show/favicon.ico",
+  "author": {
+    "name": "Deresh Dev",
+    "icon": "https://arabseed.show/favicon.ico",
+    "url": "https://t.me/yourTelegram"
+  },
+  "version": "1.0.0",
+  "language": "Arabic",
+  "streamType": "iframe",
+  "quality": "Auto",
+  "baseUrl": "https://arabseed.show/",
+  "searchBaseUrl": "https://arabseed.show/?s=%s",
+  "scriptUrl": "https://raw.githubusercontent.com/yourusername/ArabSeed/main/ArabSeed.js",
+  "type": "movies",
+  "asyncJS": true
+}
