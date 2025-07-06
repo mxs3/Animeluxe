@@ -102,34 +102,14 @@ function extractDetails(html) {
 
 function extractEpisodes(html) {
     const episodes = [];
-
-    const decodeHTMLEntities = (text) => {
-        const textarea = document.createElement("textarea");
-        textarea.innerHTML = text;
-        return textarea.value;
-    };
-
-    const episodeCardRegex = /<div class="episode-card">([\s\S]*?)<\/div>/gi;
+    const episodeRegex = /<a\s+href="([^"]*?\/episode\/[^"]*?)">[\s\S]*?<div[^>]*class="episode-number"[^>]*>\s*الحلقة\s*(\d+)\s*<\/div>/gi;
     let match;
 
-    while ((match = episodeCardRegex.exec(html)) !== null) {
-        const block = match[1];
-
-        const hrefMatch = block.match(/<a\s+href="([^"]*?\/episode\/[^"]*?)"/i);
-        const numberMatch = block.match(/<span[^>]*>\s*الحلقة\s*(\d+)\s*<\/span>/i);
-        const titleMatch = block.match(/<h3[^>]*>(.*?)<\/h3>/i);
-
-        const href = hrefMatch ? hrefMatch[1] : null;
-        const number = numberMatch ? numberMatch[1] : null;
-        const title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : "";
-
-        if (href && number) {
-            episodes.push({
-                href,
-                number,
-                title
-            });
-        }
+    while ((match = episodeRegex.exec(html)) !== null) {
+        episodes.push({
+            href: match[1],
+            number: match[2]
+        });
     }
 
     episodes.sort((a, b) => parseInt(a.number) - parseInt(b.number));
