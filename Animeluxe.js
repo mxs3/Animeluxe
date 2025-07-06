@@ -41,25 +41,62 @@ function searchResults(html) {
 
 function extractDetails(html) {
     const details = [];
-    const descriptionMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>\s*<\/div>/s);
-    let description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : "";
-    const airdateMatch = html.match(/<div class="full-list-info">\s*<small>\s* سنة بداية العرض \s*<\/small>\s*<small>\s*(\d{4})\s*<\/small>\s*<\/div>/);
+
+    const decodeHTMLEntities = (text) => {
+        const textarea = document.createElement("textarea");
+        textarea.innerHTML = text;
+        return textarea.value;
+    };
+
+    const descMatch = html.match(/<div class="story">\s*<p[^>]*>(.*?)<\/p>/s);
+    let description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : "";
+
+    const typeMatch = html.match(/<small>\s*النوع\s*:<\/small>\s*<small>\s*(.*?)\s*<\/small>/);
+    let type = typeMatch ? decodeHTMLEntities(typeMatch[1].trim()) : "";
+
+    const episodesMatch = html.match(/<small>\s*الحلقات\s*:<\/small>\s*<small>\s*(\d+)\s*<\/small>/);
+    let episodes = episodesMatch ? episodesMatch[1].trim() : "";
+
+    const airdateMatch = html.match(/<small>\s*سنة العرض\s*:<\/small>\s*<small>\s*(\d{4})\s*<\/small>/);
     let airdate = airdateMatch ? airdateMatch[1].trim() : "";
+
+    const seasonMatch = html.match(/<small>\s*الموسم\s*:<\/small>\s*<small[^>]*>\s*(.*?)\s*<\/small>/);
+    let season = seasonMatch ? decodeHTMLEntities(seasonMatch[1].trim()) : "";
+
+    const sourceMatch = html.match(/<small>\s*المصدر\s*:<\/small>\s*<small[^>]*>\s*(.*?)\s*<\/small>/);
+    let source = sourceMatch ? decodeHTMLEntities(sourceMatch[1].trim()) : "";
+
+    const studioMatch = html.match(/<small>\s*الاستوديو\s*:<\/small>\s*<small[^>]*>\s*(.*?)\s*<\/small>/);
+    let studio = studioMatch ? decodeHTMLEntities(studioMatch[1].trim()) : "";
+
+    const durationMatch = html.match(/<small>\s*مدة الحلقة\s*:<\/small>\s*<small[^>]*>\s*(.*?)\s*<\/small>/);
+    let duration = durationMatch ? decodeHTMLEntities(durationMatch[1].trim()) : "";
+
+    const ratingMatch = html.match(/<small>\s*التصنيف\s*:<\/small>\s*<small[^>]*>\s*(.*?)\s*<\/small>/);
+    let rating = ratingMatch ? decodeHTMLEntities(ratingMatch[1].trim()) : "";
+
     const genres = [];
-    const aliasesMatch = html.match(/<div class="review-author-info">([\s\S]*?)<\/div>/);
-    const inner = aliasesMatch ? aliasesMatch[1] : "";
-    const anchorRe = /<a[^>]*class="subtitle mr-1 mt-2 "[^>]*>([^<]+)<\/a>/g;
-    let m;
-    while ((m = anchorRe.exec(inner)) !== null) {
-        genres.push(m[1].trim());
+    const genreRegex = /<button[^>]*class="[^"]*category[^"]*"[^>]*>(.*?)<\/button>/g;
+    let match;
+    while ((match = genreRegex.exec(html)) !== null) {
+        genres.push(match[1].trim());
     }
-    if (description && airdate) {
+
+    if (description || airdate || episodes || studio || duration || rating || genres.length || type || source || season) {
         details.push({
-            description: description,
-            aliases: genres.join(", "),
-            airdate: airdate,
+            description,
+            type,
+            episodes,
+            airdate,
+            season,
+            source,
+            studio,
+            duration,
+            rating,
+            genres: genres.join(", ")
         });
     }
+
     return details;
 }
 
