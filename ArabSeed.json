@@ -11,7 +11,7 @@
     "quality": "1080p - 720p - 480p",
     "baseUrl": "https://ww3.animeluxe.org/",
     "searchBaseUrl": "https://ww3.animeluxe.org/search/?s=%s",
-    "scriptUrl": "https://raw.githubusercontent.com/mxs3/Animeblkom/refs/heads/main/Animeblkom.js",
+    "scriptUrl": "https://raw.githubusercontent.com/mxs3/ArabSeed/refs/heads/main/Animeluxe.js",
     "streamAsyncJS": true,
     "type": "anime"
 }​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​
