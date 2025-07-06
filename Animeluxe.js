@@ -78,20 +78,21 @@ function extractAllData(html) {
     return data;
 }
 
-function extractEpisodesList(html) {
+function extractEpisodes(html) {
     const episodes = [];
+    const regex = /<li>\s*<a href="([^"]+)" class="image[^"]*"[^>]*>.*?<\/a>\s*<a[^>]+class="title"[^>]*>\s*<h3>\s*الحلقة\s*(\d+)/gi;
 
-    const episodeRegex = /<li>\s*<a[^>]+href="([^"]+)"[^>]*class="image[^"]*"[^>]*data-src="([^"]+)"[^>]*title="([^"]+)"[^>]*><\/a>\s*<a[^>]*class="title"[^>]*>\s*<h3>\s*الحلقة\s*(\d+)<span>\s*(.*?)\s*<\/span><\/h3>/g;
     let match;
-
-    while ((match = episodeRegex.exec(html)) !== null) {
+    while ((match = regex.exec(html)) !== null) {
         episodes.push({
-            number: match[4],
-            title: match[5].trim(),
             href: match[1],
-            image: match[2]
+            number: match[2]
         });
     }
+
+    episodes.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+    return episodes;
+}
 
     episodes.sort((a, b) => parseInt(a.number) - parseInt(b.number));
     return episodes;
