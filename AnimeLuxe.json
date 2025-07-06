@@ -1,17 +1,17 @@
 {
     "sourceName": "AnimeLuxe",
-    "iconUrl": "https://ww3.animeluxe.org/wp-content/themes/MiraiTheme/assets/img/brand/copy.svg",
+    "iconUrl": "https://ww3.animeluxe.org/wp-content/uploads/2023/05/favicon-32x32-1.png",
     "author": {
         "name": "MxS3",
-        "icon": ""
+        "icon": "https://avatars.githubusercontent.com/u/212196142?v=4"
     },
-    "version": "1.0.0",
+    "version": "1.0.1",
     "language": "Arabic (SUB)",
     "streamType": "HLS, MP4",
     "quality": "1080p - 720p - 480p",
     "baseUrl": "https://ww3.animeluxe.org/",
-    "searchBaseUrl": "https://ww3.animeluxe.org/search/?s=%s",
-    "scriptUrl": "https://raw.githubusercontent.com/mxs3/ArabSeed/refs/heads/main/Animeluxe.js",
+    "searchBaseUrl": "https://ww3.animeluxe.org/anime?s=%s",
+    "scriptUrl": "https://raw.githubusercontent.com/scigward/Animeluxe/refs/heads/main/Animeluxe.js",
     "streamAsyncJS": true,
     "type": "anime"
 }
