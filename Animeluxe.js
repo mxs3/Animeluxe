@@ -102,33 +102,36 @@ function extractDetails(html) {
 
 function extractEpisodes(html) {
     const episodes = [];
-    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*>\s*الحلقة\s*(\d+)\s*<\/a>/gi;
-    const plainTextRegex = /<a[^>]*>\s*الحلقة\s+(\d+)\s*<\/a>/gi;
-    let matches;
-    if ((matches = html.match(htmlRegex))) {
-        matches.forEach(link => {
-            const hrefMatch = link.match(/href="([^"]+)"/);
-            const numberMatch = link.match(/<a[^>]*>\s*الحلقة\s+(\d+)\s*<\/a>/);
-            if (hrefMatch && numberMatch) {
-                const href = hrefMatch[1];
-                const number = numberMatch[1];
-                episodes.push({
-                    href: href,
-                    number: number
-                });
-            }
-        });
-    } else if ((matches = html.match(plainTextRegex))) {
-        matches.forEach(match => {
-            const numberMatch = match.match(/\d+/);
-            if (numberMatch) {
-                episodes.push({
-                    href: null,
-                    number: numberMatch[0]
-                });
-            }
-        });
+
+    const decodeHTMLEntities = (text) => {
+        const textarea = document.createElement("textarea");
+        textarea.innerHTML = text;
+        return textarea.value;
+    };
+
+    const episodeCardRegex = /<div class="episode-card">([\s\S]*?)<\/div>/gi;
+    let match;
+
+    while ((match = episodeCardRegex.exec(html)) !== null) {
+        const block = match[1];
+
+        const hrefMatch = block.match(/<a\s+href="([^"]*?\/episode\/[^"]*?)"/i);
+        const numberMatch = block.match(/<span[^>]*>\s*الحلقة\s*(\d+)\s*<\/span>/i);
+        const titleMatch = block.match(/<h3[^>]*>(.*?)<\/h3>/i);
+
+        const href = hrefMatch ? hrefMatch[1] : null;
+        const number = numberMatch ? numberMatch[1] : null;
+        const title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : "";
+
+        if (href && number) {
+            episodes.push({
+                href,
+                number,
+                title
+            });
+        }
     }
+
     episodes.sort((a, b) => parseInt(a.number) - parseInt(b.number));
     return episodes;
 }
