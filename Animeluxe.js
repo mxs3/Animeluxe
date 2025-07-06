@@ -36,23 +36,25 @@ function searchResults(html) {
 
 function extractDetails(html) {
     const details = [];
-    const descriptionMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>\s*<\/div>/s);
-    let description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : "";
-    const airdateMatch = html.match(/<div class="full-list-info">\s*<small>\s* سنة بداية العرض \s*<\/small>\s*<small>\s*(\d{4})\s*<\/small>\s*<\/div>/);
-    let airdate = airdateMatch ? airdateMatch[1].trim() : "";
+    const descriptionMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>/s);
+    const description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : "";
+    const airdateMatch = html.match(/سنة بداية العرض\s*<\/small>\s*<small[^>]*>\s*(\d{4})\s*<\/small>/);
+    const airdate = airdateMatch ? airdateMatch[1].trim() : "";
     const genres = [];
-    const aliasesMatch = html.match(/<div class="review-author-info">([\s\S]*?)<\/div>/);
-    const inner = aliasesMatch ? aliasesMatch[1] : "";
-    const anchorRe = /<a[^>]*class="subtitle mr-1 mt-2 "[^>]*>([^<]+)<\/a>/g;
-    let m;
-    while ((m = anchorRe.exec(inner)) !== null) {
-        genres.push(m[1].trim());
+    const genreMatches = html.match(/<a[^>]*class="subtitle[^"]*"[^>]*>(.*?)<\/a>/g);
+    if (genreMatches) {
+        genreMatches.forEach((genre) => {
+            const genreText = genre.match(/>([^<]+)<\/a>/);
+            if (genreText) genres.push(genreText[1].trim());
+        });
     }
-    if (description && airdate) {
+    const altMatch = html.match(/اسماء اخرى[^<]*<\/strong>\s*([^<]+)/);
+    const altNames = altMatch ? decodeHTMLEntities(altMatch[1].trim()) : "";
+    if (description || airdate || genres.length || altNames) {
         details.push({
-            description: description,
-            aliases: genres.join(", "),
-            airdate: airdate,
+            description,
+            airdate,
+            aliases: altNames || genres.join(", ")
         });
     }
     return details;
@@ -60,32 +62,12 @@ function extractDetails(html) {
 
 function extractEpisodes(html) {
     const episodes = [];
-    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*>\s*الحلقة\s*(\d+)\s*<\/a>/gi;
-    const plainTextRegex = /<a[^>]*>\s*الحلقة\s+(\d+)\s*<\/a>/gi;
-    let matches;
-    if ((matches = html.match(htmlRegex))) {
-        matches.forEach(link => {
-            const hrefMatch = link.match(/href="([^"]+)"/);
-            const numberMatch = link.match(/<a[^>]*>\s*الحلقة\s+(\d+)\s*<\/a>/);
-            if (hrefMatch && numberMatch) {
-                const href = hrefMatch[1];
-                const number = numberMatch[1];
-                episodes.push({
-                    href: href,
-                    number: number
-                });
-            }
-        });
-    } else if ((matches = html.match(plainTextRegex))) {
-        matches.forEach(match => {
-            const numberMatch = match.match(/\d+/);
-            if (numberMatch) {
-                episodes.push({
-                    href: null,
-                    number: numberMatch[0]
-                });
-            }
-        });
+    const episodeRegex = /<a[^>]+href="([^"]+\/episode\/[^"]+)"[^>]*>\s*(?:<span[^>]*>)?الحلقة\s*(\d+)(?:[^<]*)<\/a>/gi;
+    let match;
+    while ((match = episodeRegex.exec(html)) !== null) {
+        const href = match[1].trim();
+        const number = match[2].trim();
+        episodes.push({ href, number });
     }
     episodes.sort((a, b) => parseInt(a.number) - parseInt(b.number));
     return episodes;
@@ -105,12 +87,11 @@ async function extractStreamUrl(html) {
             const quality = (match[2] || 'Unknown').trim();
             const stream = await mp4Extractor(embedUrl);
             if (stream?.url) {
-                let title = `[${quality}] Mp4upload`;
                 const headers = stream.headers || {};
                 multiStreams.streams.push({
-                    title,
+                    title: `[${quality}] Mp4upload`,
                     streamUrl: stream.url,
-                    headers: stream.headers,
+                    headers,
                     subtitles: null
                 });
             }
@@ -121,12 +102,11 @@ async function extractStreamUrl(html) {
             const quality = (match[2] || 'Unknown').trim();
             const stream = await uqloadExtractor(embedUrl);
             if (stream?.url) {
-                let title = `[${quality}] Uqload`;
                 const headers = stream.headers || {};
                 multiStreams.streams.push({
-                    title,
+                    title: `[${quality}] Uqload`,
                     streamUrl: stream.url,
-                    headers: stream.headers,
+                    headers,
                     subtitles: null
                 });
             }
@@ -137,10 +117,9 @@ async function extractStreamUrl(html) {
             const quality = (match[2] || 'Unknown').trim();
             const stream = await vidmolyExtractor(embedUrl);
             if (stream?.url) {
-                let title = `[${quality}] Vidmoly`;
                 const headers = stream.headers || {};
                 multiStreams.streams.push({
-                    title,
+                    title: `[${quality}] Vidmoly`,
                     streamUrl: stream.url,
                     headers,
                     subtitles: null
@@ -153,10 +132,9 @@ async function extractStreamUrl(html) {
             const quality = (match[2] || 'Unknown').trim();
             const stream = await vkvideoExtractor(embedUrl);
             if (stream?.url) {
-                let title = `[${quality}] VKVideo`;
                 const headers = stream.headers || {};
                 multiStreams.streams.push({
-                    title,
+                    title: `[${quality}] VKVideo`,
                     streamUrl: stream.url,
                     headers,
                     subtitles: null
@@ -169,41 +147,6 @@ async function extractStreamUrl(html) {
     }
 }
 
-async function vidmolyExtractor(html, url = null) {
-    const regexSub = /<option value="([^"]+)"[^>]*>\s*SUB - Omega\s*<\/option>/;
-    const regexFallback = /<option value="([^"]+)"[^>]*>\s*Omega\s*<\/option>/;
-    const fallback = /<option value="([^"]+)"[^>]*>\s*SUB v2 - Omega\s*<\/option>/;
-    let match = html.match(regexSub) || html.match(regexFallback) || html.match(fallback);
-    if (match) {
-        const decodedHtml = atob(match[1]);
-        const iframeMatch = decodedHtml.match(/<iframe\s+src="([^"]+)"/);
-        if (!iframeMatch) {
-            return null;
-        }
-        const streamUrl = iframeMatch[1].startsWith("//") ? "https:" + iframeMatch[1] : iframeMatch[1];
-        const responseTwo = await fetchv2(streamUrl);
-        const htmlTwo = await responseTwo.text();
-        const m3u8Match = htmlTwo.match(/sources:\s*\[\{file:"([^"]+\.m3u8)"/);
-        return m3u8Match ? m3u8Match[1] : null;
-    } else {
-        const sourcesRegex = /sources:\s*\[\{file:"(https?:\/\/[^"]+)"\}/;
-        const sourcesMatch = html.match(sourcesRegex);
-        let sourcesString = sourcesMatch ? sourcesMatch[1].replace(/'/g, '"') : null;
-        return sourcesString;
-    }
-}
-
-async function vkvideoExtractor(embedUrl) {
-    try {
-        const response = await fetchv2(embedUrl);
-        const html = await response.text();
-        const hlsMatch = html.match(/"hls":\s*"(https:\\\/\\\/[^"]+\.m3u8[^"]*)"/);
-        return hlsMatch ? hlsMatch[1].replace(/\\\//g, '/') : null;
-    } catch (error) {
-        return null;
-    }
-}
-
 async function mp4Extractor(url) {
     const headers = {
         "Referer": "https://mp4upload.com"
@@ -213,7 +156,7 @@ async function mp4Extractor(url) {
     const streamUrl = extractMp4Script(htmlText);
     return {
         url: streamUrl,
-        headers: headers
+        headers
     };
 }
 
@@ -228,8 +171,40 @@ async function uqloadExtractor(url) {
     const videoSrc = match ? match[1] : '';
     return {
         url: videoSrc,
-        headers: headers
+        headers
     };
+}
+
+async function vidmolyExtractor(html, url = null) {
+    const regexSub = /<option value="([^"]+)"[^>]*>\s*SUB - Omega\s*<\/option>/;
+    const regexFallback = /<option value="([^"]+)"[^>]*>\s*Omega\s*<\/option>/;
+    const fallback = /<option value="([^"]+)"[^>]*>\s*SUB v2 - Omega\s*<\/option>/;
+    let match = html.match(regexSub) || html.match(regexFallback) || html.match(fallback);
+    if (match) {
+        const decodedHtml = atob(match[1]);
+        const iframeMatch = decodedHtml.match(/<iframe\s+src="([^"]+)"/);
+        if (!iframeMatch) return null;
+        const streamUrl = iframeMatch[1].startsWith("//") ? "https:" + iframeMatch[1] : iframeMatch[1];
+        const responseTwo = await fetchv2(streamUrl);
+        const htmlTwo = await responseTwo.text();
+        const m3u8Match = htmlTwo.match(/sources:\s*\[\{file:"([^"]+\.m3u8)"/);
+        return m3u8Match ? m3u8Match[1] : null;
+    } else {
+        const sourcesRegex = /sources:\s*\[\{file:"(https?:\/\/[^"]+)"\}/;
+        const sourcesMatch = html.match(sourcesRegex);
+        return sourcesMatch ? sourcesMatch[1].replace(/'/g, '"') : null;
+    }
+}
+
+async function vkvideoExtractor(embedUrl) {
+    try {
+        const response = await fetchv2(embedUrl);
+        const html = await response.text();
+        const hlsMatch = html.match(/"hls":\s*"(https:\\\/\\\/[^"]+\.m3u8[^"]*)"/);
+        return hlsMatch ? hlsMatch[1].replace(/\\\//g, '/') : null;
+    } catch (error) {
+        return null;
+    }
 }
 
 function extractMp4Script(htmlText) {
@@ -264,4 +239,3 @@ function decodeHTMLEntities(text) {
     }
     return text;
 }
- 
