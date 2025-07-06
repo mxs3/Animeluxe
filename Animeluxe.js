@@ -1,12 +1,13 @@
 function searchResults(html) {
     const results = [];
-    const itemRegex = /<div class="col-6 col-sm-4 col-lg-3 col-xl-2dot4[^"]*">([\s\S]*?)(?=<div class="col-6|$)/g;
+
+    const itemRegex = /<div class="col-12 col-s-6 col-m-4 col-l-3 media-block">([\s\S]*?)<\/div>\s*<\/div>/g;
     const items = html.match(itemRegex) || [];
 
     items.forEach((itemHtml) => {
-        const hrefMatch = itemHtml.match(/<a[^>]+href="([^"]+)"[^>]*class="[^"]*anime-details[^"]*">/);
-        const imgMatch = itemHtml.match(/<img[^>]+src="([^"]+)"[^>]*>/);
-        const titleMatch = itemHtml.match(/<h3>([^<]+)<\/h3>/);
+        const hrefMatch = itemHtml.match(/<a[^>]+href="([^"]+)"[^>]*class="image lazyactive"/);
+        const imgMatch = itemHtml.match(/data-src="([^"]+)"/);
+        const titleMatch = itemHtml.match(/<h3>(.*?)<\/h3>/);
 
         const href = hrefMatch ? hrefMatch[1].trim() : '';
         const image = imgMatch ? imgMatch[1].trim() : '';
@@ -266,4 +267,3 @@ function decodeHTMLEntities(text) {
     }
     return text;
 }
-```​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​
