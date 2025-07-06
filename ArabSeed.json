@@ -1,18 +1,17 @@
 {
-  "sourceName": "ArabSeed (Movies & Series)",
-  "iconUrl": "https://arabseed.show/favicon.ico",
-  "author": {
-    "name": "Deresh Dev",
-    "icon": "https://arabseed.show/favicon.ico",
-    "url": "https://t.me/yourTelegram"
-  },
-  "version": "1.0.1",
-  "language": "Arabic",
-  "streamType": "iframe",
-  "quality": "Auto",
-  "baseUrl": "https://arabseed.show/",
-  "searchBaseUrl": "https://arabseed.show/?s=%s",
-  "scriptUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO/main/ArabSeed.js",
-  "type": "movies",
-  "asyncJS": true
-}
+    "sourceName": "AnimeLuxe",
+    "iconUrl": "https://ww3.animeluxe.org/favicon.ico",
+    "author": {
+        "name": "MxS3",
+        "icon": ""
+    },
+    "version": "1.0.0",
+    "language": "Arabic (SUB)",
+    "streamType": "HLS, MP4",
+    "quality": "1080p - 720p - 480p",
+    "baseUrl": "https://ww3.animeluxe.org/",
+    "searchBaseUrl": "https://ww3.animeluxe.org/search/?s=%s",
+    "scriptUrl": "https://raw.githubusercontent.com/mxs3/Animeblkom/refs/heads/main/Animeblkom.js",
+    "streamAsyncJS": true,
+    "type": "anime"
+}​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​
