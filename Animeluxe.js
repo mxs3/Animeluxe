@@ -80,6 +80,28 @@ function extractEpisodes(html) {
     const episodeRegex = /<div class="episodes-card">([\s\S]*?)<\/div>\s*<\/div>/g;
     const items = html.match(episodeRegex) || [];
 
+    if (items.length === 0) {
+        const fallbackRegex = /<div class="col-[^"]+">\s*<div class="episodes-card">([\s\S]*?)<\/div>\s*<\/div>/g;
+        const fallbackItems = html.match(fallbackRegex) || [];
+
+        for (const item of fallbackItems) {
+            const urlMatch = item.match(/<a href="([^"]+)"/);
+            const numberMatch = item.match(/<div class="episode-number">([^<]+)<\/div>/);
+
+            if (urlMatch && numberMatch) {
+                let url = urlMatch[1].trim();
+                url = encodeURI(url);
+
+                episodes.push({
+                    title: numberMatch[1].trim(),
+                    url: url
+                });
+            }
+        }
+
+        return episodes;
+    }
+
     for (const item of items) {
         const urlMatch = item.match(/<a href="([^"]+)"/);
         const numberMatch = item.match(/<div class="episode-number">([^<]+)<\/div>/);
