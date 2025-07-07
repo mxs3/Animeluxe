@@ -43,10 +43,10 @@ async function extractDetails(url) {
         const response = await fetchv2(url, headers);
         const html = await response.text();
 
-        const descriptionMatch = html.match(/<div class="content">\s*<p>(.*?)<\/p>/s);
+        const descriptionMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>/s);
         const description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : 'N/A';
 
-        const airdateMatch = html.match(/سنة العرض\s*:\s*<span>(\d{4})<\/span>/);
+        const airdateMatch = html.match(/<div class="full-list-info">\s*<small>\s* سنة بداية العرض \s*<\/small>\s*<small>(\d{4})<\/small>/);
         const airdate = airdateMatch ? airdateMatch[1] : 'N/A';
 
         const genreMatches = html.match(/<div class="genres">([\s\S]*?)<\/div>/);
