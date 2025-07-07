@@ -76,85 +76,39 @@ async function extractDetails(url) {
 
 function extractEpisodes(html) {
     const episodes = [];
-    const epRegex = /<li>\s*<a[^>]+data-src="([^"]+)"[^>]*title="([^"]+)"><\/a>\s*<a[^>]+href="([^"]+)"[^>]*class="title">\s*<h3>([^<]+)<span>([^<]*)<\/span><\/h3><\/a>/g;
-    let match;
-    while ((match = epRegex.exec(html)) !== null) {
-        const image = match[1].trim();
-        const titleFull = match[2].trim();
-        const url = match[3].trim();
-        const epNum = match[4].trim();
-        const epName = match[5].trim();
-        episodes.push({
-            title: `${epNum} ${epName}`.trim(),
-            url,
-            image
-        });
+
+    const episodeRegex = /<div class="episodes-card">([\s\S]*?)<\/div>\s*<\/div>/g;
+    const items = html.match(episodeRegex) || [];
+
+    for (const item of items) {
+        const urlMatch = item.match(/<a href="([^"]+)"/);
+        const numberMatch = item.match(/<div class="episode-number">([^<]+)<\/div>/);
+
+        if (urlMatch && numberMatch) {
+            episodes.push({
+                title: numberMatch[1].trim(),
+                url: urlMatch[1].trim()
+            });
+        }
     }
+
     return episodes;
 }
 
-async function extractStreamUrl(html) {
-    const streams = [];
-    const containerMatch = html.match(/<div class="filter-links-container[^>]*>([\s\S]*?)<\/div>/);
-    if (containerMatch) {
-        const sources = containerMatch[1].matchAll(/<a[^>]*data-src="([^"]*)"[^>]*>\s*(?:<span[^>]*>)?([^<]*)<\/span>/gi);
-        for (const match of sources) {
-            const stream = await getStreamFromSource(match[1], match[2]);
-            if (stream) streams.push(stream);
+function extractStreamLinks(html) {
+    const sources = [];
+
+    const iframeRegex = /<iframe[^>]+src="([^"]+)"[^>]*><\/iframe>/g;
+    let match;
+
+    while ((match = iframeRegex.exec(html)) !== null) {
+        const src = match[1];
+        if (src.includes("uqload") || src.includes("mp4upload") || src.includes("vidmoly") || src.includes("vk.com")) {
+            sources.push(src);
         }
     }
-    return JSON.stringify({ streams });
-}
 
-async function getStreamFromSource(url, quality) {
-    if (url.includes('vkvideo.ru') || url.includes('vk.com')) {
-        return await handleVK(url, quality);
-    } else if (url.includes('yourupload.com')) {
-        return await handleYourUpload(url, quality);
-    }
-    return null;
-}
-
-async function handleVK(url, quality) {
-    const headers = {
-        'Referer': url
-    };
-
-    try {
-        const response = await fetchv2(url, { headers });
-        const html = await response.text();
-        const hlsMatch = html.match(/"hls":\s*"(https:\\\/\\\/[^"]+\.m3u8[^"]*)"/);
-        const streamUrl = hlsMatch ? hlsMatch[1].replace(/\\\//g, '/') : null;
-
-        return streamUrl ? {
-            title: `[${quality}] VK`,
-            streamUrl,
-            headers,
-            subtitles: null
-        } : null;
-    } catch (e) {
-        return null;
-    }
-}
-
-async function handleYourUpload(url, quality) {
-    const headers = {
-        'Referer': url,
-        'Origin': 'https://yourupload.com'
-    };
-
-    const response = await fetchv2(url, { headers });
-    const html = await response.text();
-
-    const match = html.match(/sources:\s*\[\s*\{\s*file:\s*"([^"]+\.mp4)"/i);
-    const videoUrl = match ? match[1] : '';
-
-    return videoUrl ? {
-        title: `[${quality}] YourUpload`,
-        streamUrl: videoUrl,
-        headers,
-        subtitles: null
-    } : null;
+    return sources;
 }
 
 function decodeHTMLEntities(text) {
