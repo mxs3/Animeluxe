@@ -76,7 +76,7 @@ async function extractDetails(html) {
 
 function extractEpisodes(html) {
     const episodes = [];
-    const itemRegex = /<a[^>]+href="([^"]+)"[^>]*>\s*(?:<div[^>]*>)?([^<]+)<\/(?:div|a)>/g;
+    const itemRegex = /<li>\s*<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>\s*<\/li>/g;
     let match;
     while ((match = itemRegex.exec(html)) !== null) {
         const url = encodeURI(match[1].trim());
