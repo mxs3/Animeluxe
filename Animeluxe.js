@@ -1,42 +1,38 @@
-function decodeHTMLEntities(text) {
-    text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
-    const entities = { '"': '"', '&': '&', "'": "'", '<': '<', '>': '>' };
-    for (const entity in entities) {
-        text = text.replace(new RegExp(entity, 'g'), entities[entity]);
+
+‏async function fetchAndSearch(keyword) {
+‏    const url = `https://ww3.animeluxe.org/?s=${encodeURIComponent(keyword)}`;
+‏    try {
+‏        const response = await fetchv2(url, {
+‏            headers: {
+‏                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            }
+        });
+‏        const html = await response.text();
+‏        const results = searchResults(html);
+‏        console.log("نتائج البحث:", results);
+‏        return results;
+‏    } catch (error) {
+‏        console.error("خطأ في جلب البيانات:", error);
+‏        return [];
     }
-    return text;
 }
 
-async function soraFetch(url, options = { headers: {}, method: 'GET', body: null }) {
-    try {
-        return await fetch(url, options);
-    } catch (error) {
-        return null;
-    }
-}
-
-async function searchResults(keyword) {
-    try {
-        const encodedKeyword = encodeURIComponent(keyword);
-        const searchUrl = `https://ww3.animeluxe.org/anime?s=${encodedKeyword}`;
-        const response = await soraFetch(searchUrl);
-        const html = await response.text();
-        const results = [];
-
-        const itemRegex = /<div class="anime-post"[\s\S]*?<a href="([^"]+)"[\s\S]*?title="([^"]+)"[\s\S]*?data-src="([^"]+)"/g;
-        let match;
-        while ((match = itemRegex.exec(html)) !== null) {
-            results.push({
-                title: decodeHTMLEntities(match[2].trim()),
-                href: match[1].trim(),
-                image: match[3].trim()
-            });
+‏function searchResults(html) {
+‏    const results = [];
+‏    const itemRegex = /<div class="col-12 col-s-6 col-m-4 col-l-3 media-block">([\s\S]*?)<\/div>\s*<\/div>/g;
+‏    const items = html.match(itemRegex) || [];
+‏    items.forEach((itemHtml) => {
+‏        const hrefMatch = itemHtml.match(/<a[^>]+href="([^"]+)"[^>]*class="image lazyactive"/);
+‏        const imgMatch = itemHtml.match(/data-src="([^"]+)"/);
+‏        const titleMatch = itemHtml.match(/<h3>(.*?)<\/h3>/);
+‏        const href = hrefMatch ? hrefMatch[1].trim() : '';
+‏        const image = imgMatch ? imgMatch[1].trim() : '';
+‏        const title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : '';
+‏        if (href && image && title) {
+‏            results.push({ title, href, image });
         }
-
-        return JSON.stringify(results);
-    } catch (error) {
-        return JSON.stringify([{ title: 'Error', href: '', image: '' }]);
-    }
+    });
+‏    return results;
 }
 
 async function extractDetails(url) {
