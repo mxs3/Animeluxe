@@ -32,108 +32,87 @@ function searchResults(html) {
     return results;
 }
 
-async function extractDetails(url) {
+async function fetchv2(url, headers) {
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Network response was not ok');
+    return response;
+}
+
+function decodeHTMLEntities(text) {
+    return text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+}
+
+async function extractDetails(html) {
     const results = [];
-    const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Referer': 'https://ww3.animeluxe.org/'
-    };
 
-    try {
-        const response = await fetchv2(url, headers);
-        const html = await response.text();
+    const descriptionMatch = html.match(/<div class="media-story">[\s\S]*?<div class="content">\s*<p>(.*?)<\/p>/);
+    const description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : 'N/A';
 
-        const descriptionMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>/s);
-        const description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : 'N/A';
+    const ratingMatch = html.match(/التصنيف\s*:\s*<span>([^<]+)<\/span>/);
+    const rating = ratingMatch ? decodeHTMLEntities(ratingMatch[1].trim()) : 'N/A';
 
-        const airdateMatch = html.match(/<div class="full-list-info">\s*<small>\s* سنة بداية العرض \s*<\/small>\s*<small>(\d{4})<\/small>/);
-        const airdate = airdateMatch ? airdateMatch[1] : 'N/A';
+    const airdateMatch = html.match(/سنة العرض\s*:\s*<span>(\d{4})<\/span>/);
+    const airdate = airdateMatch ? airdateMatch[1] : 'N/A';
 
-        const genreMatches = html.match(/<div class="genres">([\s\S]*?)<\/div>/);
-        const genres = [];
-        if (genreMatches) {
-            const genreTags = [...genreMatches[1].matchAll(/<a[^>]*>([^<]+)<\/a>/g)];
-            for (const tag of genreTags) {
-                genres.push(decodeHTMLEntities(tag[1].trim()));
-            }
-        }
+    results.push({
+        description,
+        airdate,
+        rating
+    });
 
-        results.push({
-            description,
-            airdate,
-            aliases: genres.length ? genres.join(', ') : 'N/A'
-        });
-
-        return JSON.stringify(results);
-    } catch (error) {
-        return JSON.stringify([{
-            description: 'N/A',
-            airdate: 'N/A',
-            aliases: 'N/A'
-        }]);
-    }
+    return JSON.stringify(results);
 }
 
 function extractEpisodes(html) {
     const episodes = [];
-
-    const episodeRegex = /<div class="episodes-card">([\s\S]*?)<\/div>\s*<\/div>/g;
-    const items = html.match(episodeRegex) || [];
-
-    if (items.length === 0) {
-        const fallbackRegex = /<div class="col-[^"]+">\s*<div class="episodes-card">([\s\S]*?)<\/div>\s*<\/div>/g;
-        const fallbackItems = html.match(fallbackRegex) || [];
-
-        for (const item of fallbackItems) {
-            const urlMatch = item.match(/<a href="([^"]+)"/);
-            const numberMatch = item.match(/<div class="episode-number">([^<]+)<\/div>/);
-
-            if (urlMatch && numberMatch) {
-                let url = urlMatch[1].trim();
-                url = encodeURI(url);
-
-                episodes.push({
-                    title: numberMatch[1].trim(),
-                    url: url
-                });
-            }
-        }
-
-        return episodes;
+    const itemRegex = /<a href="([^"]+)"[^>]*>\s*<div class="episode-number">([^<]+)<\/div>\s*<\/a>/g;
+    let match;
+    while ((match = itemRegex.exec(html)) !== null) {
+        const url = encodeURI(match[1].trim());
+        const title = match[2].trim();
+        episodes.push({ title, url });
     }
-
-    for (const item of items) {
-        const urlMatch = item.match(/<a href="([^"]+)"/);
-        const numberMatch = item.match(/<div class="episode-number">([^<]+)<\/div>/);
-
-        if (urlMatch && numberMatch) {
-            let url = urlMatch[1].trim();
-            url = encodeURI(url);
-
-            episodes.push({
-                title: numberMatch[1].trim(),
-                url: url
-            });
-        }
-    }
-
     return episodes;
 }
 
 function extractStreamLinks(html) {
     const sources = [];
-
     const iframeRegex = /<iframe[^>]+src="([^"]+)"[^>]*><\/iframe>/g;
     let match;
-
     while ((match = iframeRegex.exec(html)) !== null) {
         const src = match[1];
-        if (src.includes("uqload") || src.includes("mp4upload") || src.includes("vidmoly") || src.includes("vk.com")) {
+        if (/(uqload|mp4upload|vidmoly|vk\.com)/.test(src)) {
             sources.push(src);
         }
     }
-
     return sources;
+}
+
+async function fetchDetails(url) {
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Referer': 'https://ww3.animeluxe.org/'
+    };
+
+    const res = await fetchv2(url, headers);
+    const html = await res.text();
+
+    const details = await extractDetails(html);
+    const episodes = extractEpisodes(html);
+
+    const episodesWithLinks = [];
+    for (const ep of episodes) {
+        try {
+            const epRes = await fetchv2(ep.url, headers);
+            const epHtml = await epRes.text();
+            const streams = extractStreamLinks(epHtml);
+            episodesWithLinks.push({ title: ep.title, url: ep.url, streams });
+        } catch {
+            episodesWithLinks.push({ title: ep.title, url: ep.url, streams: [] });
+        }
+    }
+
+    return { details: JSON.parse(details), episodes: episodesWithLinks };
 }
 
 function decodeHTMLEntities(text) {
