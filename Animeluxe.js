@@ -85,9 +85,12 @@ function extractEpisodes(html) {
         const numberMatch = item.match(/<div class="episode-number">([^<]+)<\/div>/);
 
         if (urlMatch && numberMatch) {
+            let url = urlMatch[1].trim();
+            url = encodeURI(url);
+
             episodes.push({
                 title: numberMatch[1].trim(),
-                url: urlMatch[1].trim()
+                url: url
             });
         }
     }
