@@ -1,4 +1,4 @@
-‏async function fetchAndSearch(keyword) {
+async function fetchAndSearch(keyword) {
     const url = `https://ww3.animeluxe.org/?s=${encodeURIComponent(keyword)}`;
     try {
         const response = await fetchv2(url, {
