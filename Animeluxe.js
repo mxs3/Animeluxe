@@ -23,7 +23,7 @@ async function searchResults(keyword) {
         const html = await response.text();
         const results = [];
 
-        const itemRegex = /<div class="result-item">[\s\S]*?<a href="([^"]+)"[\s\S]*?title="([^"]+)"[\s\S]*?data-src="([^"]+)"/g;
+        const itemRegex = /<div class="anime-post"[\s\S]*?<a href="([^"]+)"[\s\S]*?title="([^"]+)"[\s\S]*?data-src="([^"]+)"/g;
         let match;
         while ((match = itemRegex.exec(html)) !== null) {
             results.push({
@@ -45,7 +45,7 @@ async function extractDetails(url) {
         const html = await response.text();
         const details = [];
 
-        const descriptionMatch = html.match(/<div class="description">\s*<p>([\s\S]*?)<\/p>/s);
+        const descriptionMatch = html.match(/<div class="summary-content">\s*<p>([\s\S]*?)<\/p>/s);
         const description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : 'N/A';
 
         const airdateMatch = html.match(/<span>سنة الإصدار\s*:<\/span>\s*(\d{4})/);
