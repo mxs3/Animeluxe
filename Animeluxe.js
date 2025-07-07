@@ -33,32 +33,56 @@ function searchResults(html) {
 }
 
 function extractDetails(html) {
-    const details = {};
-    const descMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>/s);
-    details.description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : "";
-    const yearMatch = html.match(/سنة بداية العرض\s*<\/small>\s*<small[^>]*>\s*(\d{4})\s*<\/small>/);
-    details.year = yearMatch ? yearMatch[1].trim() : "";
-    details.genres = [];
-    const genreMatches = html.matchAll(/<a[^>]*class="subtitle[^"]*"[^>]*>(.*?)<\/a>/g);
-    for (const match of genreMatches) {
-        details.genres.push(match[1].trim());
+    const info = {};
+    const typeMatch = html.match(/النوع\s*:<\s*span>(.*?)<\/span>/);
+    const episodesMatch = html.match(/الحلقات\s*:<\s*span>(.*?)<\/span>/);
+    const yearMatch = html.match(/سنة العرض\s*:<\s*span>(.*?)<\/span>/);
+    const seasonMatch = html.match(/الموسم\s*:<\s*a[^>]*?href="([^"]+)"[^>]*>([^<]+)<\/a>/);
+    const sourceMatch = html.match(/المصدر\s*:<\s*span>(.*?)<\/span>/);
+    const studioMatch = html.match(/الأستوديو\s*:<\s*[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/);
+    const durationMatch = html.match(/مدة الحلقة\s*:<\s*span>(.*?)<\/span>/);
+    const ratingMatch = html.match(/التصنيف\s*:\s*<span>(.*?)<\/span>/);
+    const descriptionMatch = html.match(/<div class="content">\s*<p>(.*?)<\/p>/s);
+    const genreMatches = [...html.matchAll(/<div class="genres">([\s\S]*?)<\/div>/)];
+    const genres = [];
+
+    if (genreMatches.length) {
+        const genreTags = [...genreMatches[0][1].matchAll(/<a[^>]*>([^<]+)<\/a>/g)];
+        genreTags.forEach(g => genres.push(g[1].trim()));
     }
-    const altMatch = html.match(/اسماء اخرى[^<]*<\/strong>\s*([^<]+)/);
-    details.altNames = altMatch ? decodeHTMLEntities(altMatch[1].trim()) : "";
-    return details;
+
+    info.type = typeMatch ? typeMatch[1].trim() : '';
+    info.episodes = episodesMatch ? episodesMatch[1].trim() : '';
+    info.year = yearMatch ? yearMatch[1].trim() : '';
+    info.season = seasonMatch ? seasonMatch[2].trim() : '';
+    info.season_url = seasonMatch ? seasonMatch[1].trim() : '';
+    info.source = sourceMatch ? sourceMatch[1].trim() : '';
+    info.studio = studioMatch ? studioMatch[2].trim() : '';
+    info.studio_url = studioMatch ? studioMatch[1].trim() : '';
+    info.duration = durationMatch ? durationMatch[1].trim() : '';
+    info.rating = ratingMatch ? ratingMatch[1].trim() : '';
+    info.description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : '';
+    info.genres = genres;
+
+    return info;
 }
 
 function extractEpisodes(html) {
     const episodes = [];
-    const episodePattern = /<a[^>]+href="([^"]+\/episode\/[^"]+)"[^>]*>\s*(?:<span[^>]*>)?الحلقة\s*(\d+)(?:[^<]*)<\/a>/gi;
+    const epRegex = /<li>\s*<a[^>]+data-src="([^"]+)"[^>]*title="([^"]+)"><\/a>\s*<a[^>]+href="([^"]+)"[^>]*class="title">\s*<h3>([^<]+)<span>([^<]*)<\/span><\/h3><\/a>/g;
     let match;
-    while ((match = episodePattern.exec(html)) !== null) {
+    while ((match = epRegex.exec(html)) !== null) {
+        const image = match[1].trim();
+        const titleFull = match[2].trim();
+        const url = match[3].trim();
+        const epNum = match[4].trim();
+        const epName = match[5].trim();
         episodes.push({
-            href: match[1].trim(),
-            number: parseInt(match[2].trim())
+            title: `${epNum} ${epName}`.trim(),
+            url,
+            image
         });
     }
-    episodes.sort((a, b) => a.number - b.number);
     return episodes;
 }
 
