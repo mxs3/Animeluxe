@@ -18,6 +18,7 @@ async function fetchAndSearch(keyword) {
 
 function searchResults(html) {
     const results = [];
+
     const itemRegex = /<div class="col-12 col-s-6 col-m-4 col-l-3 media-block">([\s\S]*?)<\/div>\s*<\/div>/g;
     const items = html.match(itemRegex) || [];
 
@@ -34,6 +35,9 @@ function searchResults(html) {
             });
         }
     }
+
+    return results;
+}
 
     return results;
 }
