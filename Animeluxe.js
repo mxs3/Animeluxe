@@ -39,19 +39,30 @@ async function fetchv2(url, headers) {
 }
 
 function decodeHTMLEntities(text) {
-    return text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+    text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+    const entities = {
+        '&quot;': '"',
+        '&amp;': '&',
+        '&apos;': "'",
+        '&lt;': '<',
+        '&gt;': '>'
+    };
+    for (const entity in entities) {
+        text = text.replace(new RegExp(entity, 'g'), entities[entity]);
+    }
+    return text;
 }
 
 async function extractDetails(html) {
     const results = [];
 
-    const descriptionMatch = html.match(/<div class="media-story">[\s\S]*?<div class="content">\s*<p>(.*?)<\/p>/);
+    const descriptionMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>/s);
     const description = descriptionMatch ? decodeHTMLEntities(descriptionMatch[1].trim()) : 'N/A';
 
-    const ratingMatch = html.match(/التصنيف\s*:\s*<span>([^<]+)<\/span>/);
+    const ratingMatch = html.match(/التصنيف\s*:\s*<\/strong>\s*([^<]+)<\/span>/);
     const rating = ratingMatch ? decodeHTMLEntities(ratingMatch[1].trim()) : 'N/A';
 
-    const airdateMatch = html.match(/سنة العرض\s*:\s*<span>(\d{4})<\/span>/);
+    const airdateMatch = html.match(/سنة العرض\s*:\s*<\/strong>\s*(\d{4})<\/span>/);
     const airdate = airdateMatch ? airdateMatch[1] : 'N/A';
 
     results.push({
@@ -65,7 +76,7 @@ async function extractDetails(html) {
 
 function extractEpisodes(html) {
     const episodes = [];
-    const itemRegex = /<a href="([^"]+)"[^>]*>\s*<div class="episode-number">([^<]+)<\/div>\s*<\/a>/g;
+    const itemRegex = /<a[^>]+href="([^"]+)"[^>]*>\s*(?:<div[^>]*>)?([^<]+)<\/(?:div|a)>/g;
     let match;
     while ((match = itemRegex.exec(html)) !== null) {
         const url = encodeURI(match[1].trim());
@@ -113,19 +124,4 @@ async function fetchDetails(url) {
     }
 
     return { details: JSON.parse(details), episodes: episodesWithLinks };
-}
-
-function decodeHTMLEntities(text) {
-    text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
-    const entities = {
-        '&quot;': '"',
-        '&amp;': '&',
-        '&apos;': "'",
-        '&lt;': '<',
-        '&gt;': '>'
-    };
-    for (const entity in entities) {
-        text = text.replace(new RegExp(entity, 'g'), entities[entity]);
-    }
-    return text;
 }
