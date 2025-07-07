@@ -18,7 +18,7 @@ async function soraFetch(url, options = { headers: {}, method: 'GET', body: null
 async function searchResults(keyword) {
     try {
         const encodedKeyword = encodeURIComponent(keyword);
-        const searchUrl = `https://ww3.animeluxe.org/?s=${encodedKeyword}`;
+        const searchUrl = `https://ww3.animeluxe.org/anime?s=${encodedKeyword}`;
         const response = await soraFetch(searchUrl);
         const html = await response.text();
         const results = [];
