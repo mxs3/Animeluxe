@@ -32,40 +32,25 @@ function searchResults(html) {
     return results;
 }
 
-function extractAnimeData(html) {
+function extractSelectedAnimeData(html) {
   const result = {};
 
-  const titleMatch = html.match(/<h1 class="title"[^>]*>([^<]+)<\/h1>/);
-  result.title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : '';
-
-  const storyMatch = html.match(/<div class="story">\s*<p>([^<]+)<\/p>/);
+  const storyMatch = html.match(/<div class="story[^>]*">\s*<p>(.*?)<\/p>/s);
   result.story = storyMatch ? decodeHTMLEntities(storyMatch[1].trim()) : '';
 
-  const episodesCountMatch = html.match(/عدد الحلقات\s*:\s*<\/span>\s*<strong>(\d+)<\/strong>/);
-  result.episodesCount = episodesCountMatch ? parseInt(episodesCountMatch[1]) : null;
-
-  const genresMatches = [...html.matchAll(/<a href="[^"]+" title="[^"]+">([^<]+)<\/a>/g)];
-  result.genres = genresMatches.length ? genresMatches.map(m => decodeHTMLEntities(m[1])) : [];
-
-  const releaseYearMatch = html.match(/سنة الاصدار\s*:\s*<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
+  const releaseYearMatch = html.match(/سنة الاصدار\s*:<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
   result.releaseYear = releaseYearMatch ? releaseYearMatch[1] : '';
 
-  const durationMatch = html.match(/مده العرض\s*:\s*<\/span>\s*<strong>([^<]+)<\/strong>/);
-  result.duration = durationMatch ? durationMatch[1] : '';
-
-  const translationMatch = html.match(/الترجمة\s*:\s*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
-  result.translation = translationMatch ? translationMatch[1] : '';
-
-  const statusMatch = html.match(/حالة الانمي\s*:\s*<\/span>\s*<strong>([^<]+)<\/strong>/);
-  result.status = statusMatch ? statusMatch[1] : '';
-
-  const studiosMatch = html.match(/الاستديوهات\s*:\s*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
-  result.studios = studiosMatch ? studiosMatch[1] : '';
-
-  const seasonMatch = html.match(/الموسم\s*:\s*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
-  result.season = seasonMatch ? seasonMatch[1] : '';
+  const genresMatches = [...html.matchAll(/<a[^>]+rel="tag"[^>]*>([^<]+)<\/a>/g)];
+  result.genres = genresMatches.map(m => decodeHTMLEntities(m[1].trim()));
 
   return result;
+}
+
+function decodeHTMLEntities(text) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = text;
+  return txt.value;
 }
 
 async function extractEpisodes(url) {
