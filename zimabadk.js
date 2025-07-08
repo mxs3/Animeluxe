@@ -33,46 +33,69 @@ function searchResults(html) {
 }
 
 function extractDetails(html) {
-    const details = {};
+  const imageMatch = html.match(/<div class="image lazyactive" data-src="([^"]+)"/);
+  const image = imageMatch ? imageMatch[1] : "";
 
-    const titleMatch = html.match(/<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>(.*?)<\/h1>/s);
-    details.title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : "";
+  const titleMatch = html.match(/<div class="image lazyactive"[^>]+title="([^"]+)"/);
+  const title = titleMatch ? titleMatch[1] : "";
 
-    const posterMatch = html.match(/<div class="anime-poster">.*?<img[^>]*src="([^"]+)"/s);
-    details.poster = posterMatch ? posterMatch[1] : "";
+  const trailerMatch = html.match(/<a href="([^"]+)" class="btn btn-trailer youtube-bg"/);
+  const trailer = trailerMatch ? trailerMatch[1] : "";
 
-    const descMatch = html.match(/<div class="review-content">\s*<p>(.*?)<\/p>/s);
-    details.description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : "";
+  const descMatch = html.match(/<div class="media-story">[\s\S]*?<div class="content">\s*<p>(.*?)<\/p>/);
+  const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : "";
 
-    const genresMatch = html.match(/النوع<\/small>\s*<small>(.*?)<\/small>/s);
-    details.genres = genresMatch ? decodeHTMLEntities(genresMatch[1].trim()).split(/[،,]/).map(g => g.trim()) : [];
+  const infoMatches = [...html.matchAll(/<li>\s*([^:]+) : (?:<span>(.*?)<\/span>|<a [^>]+>(.*?)<\/a>)/g)];
+  const info = {};
+  infoMatches.forEach(m => {
+    info[m[1].trim()] = m[2] || m[3] || "";
+  });
 
-    const yearMatch = html.match(/سنة بداية العرض<\/small>\s*<small>(\d{4})<\/small>/s);
-    details.year = yearMatch ? yearMatch[1] : "";
-
-    return details;
+  return {
+    title,
+    image,
+    trailer,
+    description,
+    type: info["النوع"] || "",
+    year: info["سنة العرض"] || "",
+    season: info["الموسم"] || "",
+    source: info["المصدر"] || "",
+    studio: info["الأستوديو"] || "",
+    episode_duration: info["مدة الحلقة"] || "",
+    rating: info["التصنيف"] || ""
+  };
 }
 
 function extractEpisodes(html) {
-    const episodes = [];
-    const episodeRegex = /<li[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g;
-
-    let match;
-    while ((match = episodeRegex.exec(html)) !== null) {
-        episodes.push({
-            title: decodeHTMLEntities(match[2].trim()),
-            url: match[1]
-        });
-    }
-
-    return episodes.reverse();
+  const episodeRegex = /<li>[\s\S]*?<a href="([^"]+)" class="title">[\s\S]*?<h3>([^<]+)<span>[^<]*<\/span><\/h3>[\s\S]*?<\/a>/g;
+  const episodes = [];
+  let match;
+  while ((match = episodeRegex.exec(html)) !== null) {
+    episodes.push({
+      url: match[1],
+      title: match[2].trim()
+    });
+  }
+  return episodes;
 }
 
-function decodeHTMLEntities(str) {
-    return str.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(code))
-              .replace(/&quot;/g, '"')
-              .replace(/&apos;/g, "'")
-              .replace(/&amp;/g, '&')
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>');
+async function fetchAnimeDetailsAndEpisodes(url) {
+  try {
+    const response = await fetch(url);
+    const html = await response.text();
+
+    const details = extractDetails(html);
+    const episodes = extractEpisodes(html);
+
+    return { details, episodes };
+  } catch (e) {
+    console.error("Failed fetching anime details and episodes:", e);
+    return { details: null, episodes: [] };
+  }
+}
+
+function decodeHTMLEntities(text) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = text;
+  return txt.value;
 }
