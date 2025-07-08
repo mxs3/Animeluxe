@@ -1,33 +1,21 @@
-async function searchResults(keyword) {
-    const url = `https://www.zimabadk.com/search/${encodeURIComponent(keyword)}/`;
-    const response = await soraFetch(url, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-        }
-    });
+async function fetchAndSearch(keyword) {
+    const url = `https://www.zimabadk.com/?type=anime&s=${encodeURIComponent(keyword)}`;
+    const response = await soraFetch(url);
     const html = await response.text();
+    return await searchResults(html);
+}
 
+async function searchResults(html) {
     const results = [];
-    const regex = /<div class="postBlockOne">[\s\S]*?<a\s+class="anime"\s+href="([^"]+)"[^>]*>[\s\S]*?<img[^>]+data-img="([^"]+)"[^>]*>[\s\S]*?<h3 class="title">\s*(.*?)\s*<\/h3>/g;
-
-    const seen = new Set();
+    const regex = /<div class="postBlockOne">\s*<a[^"]+" href="([^"]+)"[^>]*title="([^"]+)">[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
     let match;
     while ((match = regex.exec(html)) !== null) {
-        const link = match[1].trim();
-        const image = match[2].trim();
-        const title = match[3].replace(/مشاهدة\s+انمي\s+/gi, '').replace(/\s+مترجم\s+كامل/gi, '').trim();
-
-        if (!seen.has(link)) {
-            seen.add(link);
-            results.push({
-                title: title,
-                href: link,
-                image: image
-            });
-        }
+        results.push({
+            title: match[2].trim(),
+            image: match[3].trim(),
+            href: match[1].trim()
+        });
     }
-
-    console.log(results);
     return JSON.stringify(results);
 }
 
