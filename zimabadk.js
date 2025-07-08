@@ -15,34 +15,38 @@ async function fetchAndSearch(keyword) {
     }
 }
 
-function searchResults(html) {
-    const results = [];
-    const regex = /<div class="postBlockOne">[\s\S]*?<a\s+class="[^"]*"\s+href="([^"]+)"\s+title="([^"]+)">[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
-    let match;
-    const titlesSet = new Set();
-    while ((match = regex.exec(html)) !== null) {
-        const href = match[1].trim();
-        const title = match[2].trim();
-        const image = match[3].trim();
-        if (!titlesSet.has(title)) {
-            results.push({ title, href, image });
-            titlesSet.add(title);
-        }
-    }
-    return results;
+async function fetchDetails(pageUrl) {
+    const response = await soraFetch(pageUrl, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+    });
+    const html = await response.text();
+    return extractDetails(html);
 }
 
 function extractDetails(html) {
-    const decodeHTMLEntities = (str) => {
-        const textarea = document.createElement('textarea');
-        textarea.innerHTML = str;
-        return textarea.value;
-    };
-    const titleMatch = html.match(/<h1 class="title"[^>]*>(.*?)<\/h1>/s);
-    const title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : "";
-    const descMatch = html.match(/<div class="story">\s*(.*?)<\/div>/s);
-    const description = descMatch ? decodeHTMLEntities(descMatch[1].replace(/<[^>]+>/g, '').trim()) : "";
-    return { title, description };
+    const descMatch = html.match(/<div class="story">([\s\S]*?)<\/div>/);
+    const description = descMatch ? descMatch[1].replace(/<\/?[^>]+>/g, '').trim() : '';
+    const aliasMatch = html.match(/<h4><i class="fas fa-quote-right"><\/i>\s*ا\/كقصة الانمي<\/div>([\s\S]*?)<div class="headTitle">/);
+    const aliases = aliasMatch ? aliasMatch[1].replace(/<\/?[^>]+>/g, '').trim() : '';
+    return { description, aliases };
+}
+
+async function fetchEpisodes(pageUrl) {
+    const response = await soraFetch(pageUrl, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+    });
+    const html = await response.text();
+    return extractEpisodes(html);
+}
+
+function extractEpisodes(html) {
+    const episodes = [];
+    const regex = /<li\s+data-ep="([^"]+)">[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>\s*<span>الحلقة<\/span>\s*<em>([^<]+)<\/em>/g;
+    let m;
+    while ((m = regex.exec(html)) !== null) {
+        episodes.push({ episode: m[1].trim(), title: m[3].trim(), href: m[2].trim() });
+    }
+    return episodes.reverse();
 }
 
 function extractEpisodes(html) {
