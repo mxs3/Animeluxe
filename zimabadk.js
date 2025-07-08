@@ -38,68 +38,132 @@ function searchResults(html) {
 function extractDetails(html) {
   const result = {};
 
-  const titleMatch = html.match(/<h1 class="title"[^>]*>([^<]+)<\/h1>/);
-  result.title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : '';
+  const storyMatch = html.match(/<div class="story">\s*<p>([\s\S]*?)<\/p>/);
+  result.description = storyMatch ? decodeHTMLEntities(storyMatch[1].trim()) : '';
 
-  const storyMatch = html.match(/<div class="story[^>]*">\s*<p[^>]*>([\s\S]*?)<\/p>/);
-  result.story = storyMatch ? decodeHTMLEntities(storyMatch[1].trim()) : '';
+  const releaseYearMatch = html.match(/سنة الاصدار\s*:\s*<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
+  result.releaseYear = releaseYearMatch ? releaseYearMatch[1].trim() : '';
 
-  const releaseYearMatch = html.match(/سنة\s*الاصدار[^<]*<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
-  result.releaseYear = releaseYearMatch ? releaseYearMatch[1] : '';
+  const airedDateMatch = html.match(/بدأ عرضه من\s*:\s*<\/span>\s*<strong>([^<]+)<\/strong>/);
+  result.airedDate = airedDateMatch ? airedDateMatch[1].trim() : '';
 
-  const genreRegex = /<a[^>]+rel="tag"[^>]*>([^<]+)<\/a>/g;
   const genres = [];
-  let match;
-  while ((match = genreRegex.exec(html)) !== null) {
-    const genre = decodeHTMLEntities(match[1].trim());
-    if (!genres.includes(genre)) genres.push(genre);
+  const genresBlockMatch = html.match(/الانواع\s*:\s*<\/span>([\s\S]*?)<\/li>/);
+  if (genresBlockMatch) {
+    const genreRegex = /<a[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = genreRegex.exec(genresBlockMatch[1])) !== null) {
+      genres.push(decodeHTMLEntities(m[1].trim()));
+    }
   }
   result.genres = genres;
 
-  const statusMatch = html.match(/حالة\s*الانمي[^<]*<\/span>\s*<strong[^>]*>([^<]+)<\/strong>/);
-  result.status = statusMatch ? decodeHTMLEntities(statusMatch[1].trim()) : '';
+  const categories = [];
+  const categoriesBlockMatch = html.match(/التصنيفات\s*:\s*<\/span>([\s\S]*?)<\/li>/);
+  if (categoriesBlockMatch) {
+    const catRegex = /<a[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = catRegex.exec(categoriesBlockMatch[1])) !== null) {
+      categories.push(decodeHTMLEntities(m[1].trim()));
+    }
+  }
+  result.categories = categories;
 
-  const studiosMatch = html.match(/الاستديوهات[^<]*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
-  result.studios = studiosMatch ? decodeHTMLEntities(studiosMatch[1].trim()) : '';
-
-  const seasonMatch = html.match(/الموسم[^<]*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
-  result.season = seasonMatch ? decodeHTMLEntities(seasonMatch[1].trim()) : '';
+  result.episodes = extractEpisodes(html);
 
   return result;
 }
 
 function extractEpisodes(html) {
   const episodes = [];
-  const regex = /<li[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*class="title"[^>]*>\s*<h3[^>]*>([^<]+)<\/h3>/g;
+  const regex = /<li[^>]*data-ep="(\d+)"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<span[^>]*>[^<]*<\/span>\s*<em[^>]*>([^<]+)<\/em>/g;
   let match;
-
   while ((match = regex.exec(html)) !== null) {
-    const href = match[1];
-    const title = match[2];
-    const numberMatch = title.match(/(\d+)/);
-    if (numberMatch) {
-      episodes.push({ number: parseInt(numberMatch[1]), href });
+    const epNum = match[3]?.trim();
+    const href = match[2]?.trim();
+    if (epNum && href) {
+      episodes.push({ number: epNum, href: href });
     }
   }
-
   return episodes;
 }
 
-function decodeHTMLEntities(text) {
-  text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
+async function extractStreamUrl(html) {
+  try {
+    const sourceMatch = html.match(/data-video-source="([^"]+)"/);
+    let embedUrl = sourceMatch?.[1]?.replace(/&amp;/g, '&');
+    if (!embedUrl) return null;
 
-  const entities = {
-    '&quot;': '"',
-    '&amp;': '&',
-    '&apos;': "'",
-    '&lt;': '<',
-    '&gt;': '>',
-    '&nbsp;': ' '
-  };
+    const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
+    const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
+    const cinemaNum = cinemaMatch ? cinemaMatch[1] : undefined;
+    const lastNum = lastMatch ? lastMatch[1] : undefined;
 
-  for (const entity in entities) {
-    text = text.replace(new RegExp(entity, 'g'), entities[entity]);
+    if (cinemaNum) embedUrl += `&cinema=${cinemaNum}`;
+    if (lastNum) embedUrl += `&last=${lastNum}`;
+    embedUrl += `&next-image=undefined`;
+
+    const response = await fetchv2(embedUrl);
+    const data = await response.text();
+
+    const qualities = extractQualities(data);
+
+    const epMatch = html.match(/<title>[^<]*الحلقة\s*(\d+)[^<]*<\/title>/);
+    const currentEp = epMatch ? Number(epMatch[1]) : null;
+
+    let nextEpNum, nextDuration, nextSubtitle;
+    if (currentEp !== null) {
+      const episodeRegex = new RegExp(
+        `<a[^>]+href="[^"]+/episode/[^/]+/(\\d+)"[\\s\\S]*?` +
+        `<span[^>]*>([^<]+)<\\/span>[\\s\\S]*?` +
+        `<p[^>]*>([^<]+)<\\/p>`,
+        'g'
+      );
+      let m;
+      while ((m = episodeRegex.exec(html)) !== null) {
+        const num = Number(m[1]);
+        if (num > currentEp) {
+          nextEpNum = num;
+          nextDuration = m[2].trim();
+          nextSubtitle = m[3].trim();
+          break;
+        }
+      }
+    }
+
+    if (nextEpNum != null) {
+      embedUrl += `&next-title=${encodeURIComponent(nextDuration)}`;
+      embedUrl += `&next-sub-title=${encodeURIComponent(nextSubtitle)}`;
+    }
+
+    const result = {
+      streams: qualities,
+    };
+
+    return JSON.stringify(result);
+  } catch (err) {
+    return null;
+  }
+}
+
+function extractQualities(html) {
+  const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
+  if (!match) return [];
+
+  const raw = match[1];
+  const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
+  const list = [];
+  let m;
+
+  while ((m = regex.exec(raw)) !== null) {
+    list.push(m[2], m[1]);
   }
 
-  return text;
+  return list;
+}
+
+function decodeHTMLEntities(text) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = text;
+  return txt.value;
 }
