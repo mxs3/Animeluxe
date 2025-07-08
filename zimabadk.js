@@ -32,38 +32,54 @@ function searchResults(html) {
     return results;
 }
 
-function extractDetails(html) {
-  const imageMatch = html.match(/<div class="image lazyactive" data-src="([^"]+)"/);
-  const image = imageMatch ? imageMatch[1] : "";
+async function extractDetails(url) {
+  try {
+    const response = await fetchv2(url);
+    const html = await response.text();
 
-  const titleMatch = html.match(/<div class="image lazyactive"[^>]+title="([^"]+)"/);
-  const title = titleMatch ? titleMatch[1] : "";
+    const details = {
+      description: 'N/A',
+      aliases: '',
+      airdate: 'Unknown'
+    };
 
-  const trailerMatch = html.match(/<a href="([^"]+)" class="btn btn-trailer youtube-bg"/);
-  const trailer = trailerMatch ? trailerMatch[1] : "";
+    const descriptionMatch = html.match(/<div class="content">\s*<p>(.*?)<\/p>\s*<\/div>/s);
+    if (descriptionMatch) {
+      details.description = decodeHTMLEntities(descriptionMatch[1].trim());
+    }
 
-  const descMatch = html.match(/<div class="media-story">[\s\S]*?<div class="content">\s*<p>(.*?)<\/p>/);
-  const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : "";
+    if (url.includes('movies')) {
+      const airdateMatch = html.match(/<li>\s*بداية العرض:\s*<span>\s*<a [^>]*rel="tag"[^>]*>([^<]+)<\/a>/);
+      if (airdateMatch) details.airdate = `Released: ${airdateMatch[1].trim()}`;
+    } else if (url.includes('animes')) {
+      const airdateMatch = html.match(/<li>\s*بداية العرض:\s*<a [^>]*rel="tag"[^>]*>([^<]+)<\/a>/);
+      if (airdateMatch) details.airdate = `Aired: ${airdateMatch[1].trim()}`;
+    } else {
+      throw new Error("URL does not match known anime or movie paths.");
+    }
 
-  const infoMatches = [...html.matchAll(/<li>\s*([^:]+) : (?:<span>(.*?)<\/span>|<a [^>]+>(.*?)<\/a>)/g)];
-  const info = {};
-  infoMatches.forEach(m => {
-    info[m[1].trim()] = m[2] || m[3] || "";
-  });
+    const genres = [];
+    const genresMatch = html.match(/<div\s+class="genres">([\s\S]*?)<\/div>/);
+    if (genresMatch) {
+      const inner = genresMatch[1];
+      const anchorRe = /<a[^>]*>([^<]+)<\/a>/g;
+      let m;
+      while ((m = anchorRe.exec(inner)) !== null) {
+        genres.push(decodeHTMLEntities(m[1].trim()));
+      }
+      details.aliases = genres.join(', ');
+    }
 
-  return {
-    title,
-    image,
-    trailer,
-    description,
-    type: info["النوع"] || "",
-    year: info["سنة العرض"] || "",
-    season: info["الموسم"] || "",
-    source: info["المصدر"] || "",
-    studio: info["الأستوديو"] || "",
-    episode_duration: info["مدة الحلقة"] || "",
-    rating: info["التصنيف"] || ""
-  };
+    return JSON.stringify([details]);
+
+  } catch (error) {
+    console.log('Details error:', error);
+    return JSON.stringify([{
+      description: 'Error loading description',
+      aliases: 'Aliases: Unknown',
+      airdate: 'Aired: Unknown'
+    }]);
+  }
 }
 
 function extractEpisodes(html) {
