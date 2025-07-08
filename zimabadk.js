@@ -1,13 +1,17 @@
 async function fetchAndSearch(keyword) {
   const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}`;
-  const res = await soraFetch(url);
+  const res = await soraFetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    }
+  });
   const html = await res.text();
   return searchResults(html);
 }
 
 function searchResults(html) {
   const results = [];
-  const regex = /<div class="postBlockOne">.*?<a\s+class=".*?"\s+href="([^"]+)"[^>]*>.*?<div[^>]+class="poster"[^>]*>\s*<img[^>]*data-src="([^"]+)"[^>]*>.*?<h3[^>]*>(.*?)<\/h3>/gs;
+  const regex = /<div class="postBlockOne">.*?<a\s+class=".*?"\s+href="([^"]+)"[^>]*>.*?<div[^>]*class="poster"[^>]*>\s*<img[^>]*data-img="([^"]+)"[^>]*>.*?<h3[^>]*>(.*?)<\/h3>/gs;
   let match;
   while ((match = regex.exec(html)) !== null) {
     results.push({
