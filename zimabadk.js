@@ -1,18 +1,17 @@
 async function fetchAndSearch(keyword) {
-    const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}&type=anime`;
-    try {
-        const response = await soraFetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
-        const html = await response.text();
-        const results = searchResults(html);
-        console.log(results);
-        return JSON.stringify(results);
-    } catch (error) {
-        return JSON.stringify([]);
-    }
+  const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}&type=anime`;
+  try {
+    const response = await soraFetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0'
+      }
+    });
+    const html = await response.text();
+    const results = searchResults(html);
+    return JSON.stringify(results);
+  } catch (error) {
+    return JSON.stringify([]);
+  }
 }
 
 function searchResults(html) {
@@ -101,7 +100,6 @@ async function extractStreamUrl(html) {
 
     if (cinemaNum) embedUrl += `&cinema=${cinemaNum}`;
     if (lastNum) embedUrl += `&last=${lastNum}`;
-    embedUrl += `&next-image=undefined`;
 
     const response = await fetchv2(embedUrl);
     const data = await response.text();
@@ -136,11 +134,7 @@ async function extractStreamUrl(html) {
       embedUrl += `&next-sub-title=${encodeURIComponent(nextSubtitle)}`;
     }
 
-    const result = {
-      streams: qualities,
-    };
-
-    return JSON.stringify(result);
+    return JSON.stringify({ streams: qualities });
   } catch (err) {
     return null;
   }
@@ -156,7 +150,7 @@ function extractQualities(html) {
   let m;
 
   while ((m = regex.exec(raw)) !== null) {
-    list.push(m[2], m[1]);
+    list.push({ quality: m[2], url: m[1] });
   }
 
   return list;
@@ -166,4 +160,8 @@ function decodeHTMLEntities(text) {
   const txt = document.createElement('textarea');
   txt.innerHTML = text;
   return txt.value;
+}
+
+async function fetchv2(url, options = {}) {
+  return await fetch(url, options);
 }
