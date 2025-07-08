@@ -1,85 +1,59 @@
 async function fetchAndSearch(keyword) {
-    const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}&type=anime`;
-    try {
-        const response = await soraFetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
-        const html = await response.text();
-        const results = searchResults(html);
-        console.log(results);
-        return JSON.stringify(results);
-    } catch (error) {
-        return JSON.stringify([]);
-    }
+  const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}`;
+  const res = await soraFetch(url);
+  const html = await res.text();
+  return searchResults(html);
 }
 
-async function fetchDetails(pageUrl) {
-    const response = await soraFetch(pageUrl, {
-        headers: { "User-Agent": "Mozilla/5.0" }
+function searchResults(html) {
+  const results = [];
+  const regex = /<div class="postBlockOne">.*?<a\s+class=".*?"\s+href="([^"]+)"[^>]*>.*?<div[^>]+class="poster"[^>]*>\s*<img[^>]*data-src="([^"]+)"[^>]*>.*?<h3[^>]*>(.*?)<\/h3>/gs;
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    results.push({
+      title: match[3].trim(),
+      image: match[2].trim(),
+      href: match[1].trim()
     });
-    const html = await response.text();
-    return extractDetails(html);
+  }
+  return results;
+}
+
+async function fetchDetails(url) {
+  const res = await soraFetch(url);
+  const html = await res.text();
+  const details = extractDetails(html);
+  const episodes = extractEpisodes(html);
+  return {
+    ...details,
+    episodes: episodes
+  };
 }
 
 function extractDetails(html) {
-    const descMatch = html.match(/<div class="story">([\s\S]*?)<\/div>/);
-    const description = descMatch ? descMatch[1].replace(/<\/?[^>]+>/g, '').trim() : '';
-    const aliasMatch = html.match(/<h4><i class="fas fa-quote-right"><\/i>\s*ا\/كقصة الانمي<\/div>([\s\S]*?)<div class="headTitle">/);
-    const aliases = aliasMatch ? aliasMatch[1].replace(/<\/?[^>]+>/g, '').trim() : '';
-    return { description, aliases };
+  const details = {};
+  const descMatch = html.match(/<div class="story">\s*<p>(.*?)<\/p>/s);
+  const imgMatch = html.match(/<div class="poster">\s*<img\s+src="([^"]+)"/);
+  const titleMatch = html.match(/<h1 class="animeTitle">(.*?)<\/h1>/);
+  const statusMatch = html.match(/<div class="info">.*?الحالة<\/strong>\s*:\s*(.*?)<\/div>/s);
+
+  details.description = descMatch ? descMatch[1].trim() : "";
+  details.image = imgMatch ? imgMatch[1] : "";
+  details.title = titleMatch ? titleMatch[1].trim() : "";
+  details.status = statusMatch ? statusMatch[1].trim() : "";
+
+  return details;
 }
 
-async function fetchEpisodes(pageUrl) {
-    const response = await soraFetch(pageUrl, {
-        headers: { "User-Agent": "Mozilla/5.0" }
+function extractEpisodes(html) {
+  const episodes = [];
+  const regex = /<li[^>]*>\s*<a\s+href="([^"]+)"[^>]*>\s*<span>الحلقة<\/span>\s*<em>([^<]+)<\/em>/g;
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    episodes.push({
+      title: `الحلقة ${match[2]}`,
+      href: match[1]
     });
-    const html = await response.text();
-    return extractEpisodes(html);
-}
-
-function extractEpisodes(html) {
-    const episodes = [];
-    const regex = /<li\s+data-ep="([^"]+)">[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>\s*<span>الحلقة<\/span>\s*<em>([^<]+)<\/em>/g;
-    let m;
-    while ((m = regex.exec(html)) !== null) {
-        episodes.push({ episode: m[1].trim(), title: m[3].trim(), href: m[2].trim() });
-    }
-    return episodes.reverse();
-}
-
-function extractEpisodes(html) {
-    const episodes = [];
-    const regex = /<li\s+data-ep="(.*?)">\s*<a[^>]+href="(.*?)"[^>]+title="(.*?)">.*?<em>(.*?)<\/em>/gs;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-        const number = match[1].trim();
-        const url = match[2].trim();
-        const title = match[3].trim();
-        episodes.push({
-            episode: number,
-            title,
-            url
-        });
-    }
-    return episodes;
-}
-
-function extractStreamUrl(html) {
-    const match = html.match(/<iframe[^>]+src="([^"]+)"/i);
-    return match ? match[1].trim() : null;
-}
-
-function extractAllServers(html) {
-    const servers = [];
-    const regex = /<li[^>]+onClick="getServer2\([^,]+,\s*(\d+),\s*(\d+)\);".*?<span[^>]*class="server">(.*?)<\/span>/gs;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-        const index = match[1].trim();
-        const serverId = match[2].trim();
-        const name = match[3].trim();
-        servers.push({ name, index, serverId });
-    }
-    return servers;
+  }
+  return episodes.reverse();
 }
