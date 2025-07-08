@@ -16,41 +16,75 @@ async function fetchAndSearch(keyword) {
 }
 
 function searchResults(html) {
-    const results = [];
-    const regex = /<div class="postBlockOne">[\s\S]*?<a\s+class="[^"]*"\s+href="([^"]+)"\s+title="([^"]+)">[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
-    let match;
-    const titlesSet = new Set();
-    while ((match = regex.exec(html)) !== null) {
-        const href = match[1].trim();
-        const title = match[2].trim();
-        const image = match[3].trim();
-        if (!titlesSet.has(title)) {
-            results.push({ title, href, image });
-            titlesSet.add(title);
-        }
+  const results = [];
+  const regex = /<div class="postBlockOne">[\s\S]*?<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"[^>]*>[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
+  let match;
+  const seen = new Set();
+
+  while ((match = regex.exec(html)) !== null) {
+    const href = match[1].trim();
+    const title = decodeHTMLEntities(match[2].trim());
+    const image = match[3].trim();
+
+    if (!seen.has(title)) {
+      results.push({ title, href, image });
+      seen.add(title);
     }
-    return results;
+  }
+
+  return results;
 }
 
 function extractSelectedAnimeData(html) {
   const result = {};
 
+  const titleMatch = html.match(/<h1 class="title"[^>]*>([^<]+)<\/h1>/);
+  result.title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : '';
+
   const storyMatch = html.match(/<div class="story[^>]*">\s*<p>(.*?)<\/p>/s);
   result.story = storyMatch ? decodeHTMLEntities(storyMatch[1].trim()) : '';
 
-  const releaseYearMatch = html.match(/سنة الاصدار\s*:<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
+  const releaseYearMatch = html.match(/سنة(?:\s+)?الاصدار\s*:<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
   result.releaseYear = releaseYearMatch ? releaseYearMatch[1] : '';
 
-  const genresMatches = [...html.matchAll(/<a[^>]+rel="tag"[^>]*>([^<]+)<\/a>/g)];
-  result.genres = genresMatches.map(m => decodeHTMLEntities(m[1].trim()));
+  const genreRegex = /<a[^>]+rel="tag"[^>]*>([^<]+)<\/a>/g;
+  const genres = [];
+  let genreMatch;
+  while ((genreMatch = genreRegex.exec(html)) !== null) {
+    genres.push(decodeHTMLEntities(genreMatch[1].trim()));
+  }
+  result.genres = genres;
+
+  const durationMatch = html.match(/مده(?:\s+)?العرض\s*:<\/span>\s*<strong[^>]*>([^<]+)<\/strong>/);
+  result.duration = durationMatch ? decodeHTMLEntities(durationMatch[1].trim()) : '';
+
+  const statusMatch = html.match(/حالة(?:\s+)?الانمي\s*:<\/span>\s*<strong[^>]*>([^<]+)<\/strong>/);
+  result.status = statusMatch ? decodeHTMLEntities(statusMatch[1].trim()) : '';
+
+  const studiosMatch = html.match(/الاستديوهات\s*:<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
+  result.studios = studiosMatch ? decodeHTMLEntities(studiosMatch[1].trim()) : '';
+
+  const seasonMatch = html.match(/الموسم\s*:<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
+  result.season = seasonMatch ? decodeHTMLEntities(seasonMatch[1].trim()) : '';
 
   return result;
 }
 
 function decodeHTMLEntities(text) {
-  const txt = document.createElement('textarea');
-  txt.innerHTML = text;
-  return txt.value;
+  if (typeof document !== 'undefined') {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = text;
+    return txt.value;
+  } else {
+    return text.replace(/&amp;/g, '&')
+               .replace(/&lt;/g, '<')
+               .replace(/&gt;/g, '>')
+               .replace(/&quot;/g, '"')
+               .replace(/&#39;/g, "'")
+               .replace(/&nbsp;/g, ' ')
+               .replace(/&#x[\dA-Fa-f]+;/g, m => String.fromCharCode(parseInt(m.replace(/[&#x;]/g, ''), 16)))
+               .replace(/&#\d+;/g, m => String.fromCharCode(parseInt(m.replace(/[&#;]/g, ''))));
+  }
 }
 
 async function extractEpisodes(url) {
