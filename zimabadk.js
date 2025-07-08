@@ -16,7 +16,7 @@ async function fetchAndSearch(keyword) {
 
 function searchResults(html) {
   const results = [];
-  const regex = /<div class="postBlockOne">[\s\S]*?<a[^>]*href="([^"]+)"[^>]*title="([^"]+)"[^>]*>[\s\S]*?<img[^>]*data-img="([^"]+)"/g;
+  const regex = /<div class="postBlockOne">[\s\S]*?<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"[^>]*>[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
   let match;
   const seen = new Set();
 
