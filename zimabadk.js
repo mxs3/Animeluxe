@@ -32,81 +32,40 @@ function searchResults(html) {
     return results;
 }
 
-async function extractDetails(url) {
-    try {
-        const response = await fetchv2(url);
-        const html = await response.text();
+function extractAnimeData(html) {
+  const result = {};
 
-        const details = [];
+  const titleMatch = html.match(/<h1 class="title"[^>]*>([^<]+)<\/h1>/);
+  result.title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : '';
 
-        function decodeHTMLEntities(text) {
-            return text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
-                       .replace(/&amp;/g, '&')
-                       .replace(/&lt;/g, '<')
-                       .replace(/&gt;/g, '>')
-                       .replace(/&quot;/g, '"')
-                       .replace(/&apos;/g, "'");
-        }
+  const storyMatch = html.match(/<div class="story">\s*<p>([^<]+)<\/p>/);
+  result.story = storyMatch ? decodeHTMLEntities(storyMatch[1].trim()) : '';
 
-        if (url.includes('/movies/')) {
-            const descMatch = html.match(/<div class="content">\s*<p>(.*?)<\/p>/s);
-            const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : 'N/A';
+  const episodesCountMatch = html.match(/عدد الحلقات\s*:\s*<\/span>\s*<strong>(\d+)<\/strong>/);
+  result.episodesCount = episodesCountMatch ? parseInt(episodesCountMatch[1]) : null;
 
-            const yearMatch = html.match(/<li>[^<]*سنة العرض[^<]*<\/li>\s*<span>([^<]+)<\/span>/);
-            const airdate = yearMatch ? yearMatch[1].trim() : 'Unknown';
+  const genresMatches = [...html.matchAll(/<a href="[^"]+" title="[^"]+">([^<]+)<\/a>/g)];
+  result.genres = genresMatches.length ? genresMatches.map(m => decodeHTMLEntities(m[1])) : [];
 
-            const genres = [];
-            const genresBlockMatch = html.match(/<div class="genres">([\s\S]*?)<\/div>/);
-            if (genresBlockMatch) {
-                const genreLinks = genresBlockMatch[1].match(/<a[^>]*>([^<]+)<\/a>/g) || [];
-                genreLinks.forEach(link => {
-                    const g = link.match(/>([^<]+)</);
-                    if (g) genres.push(decodeHTMLEntities(g[1].trim()));
-                });
-            }
+  const releaseYearMatch = html.match(/سنة الاصدار\s*:\s*<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
+  result.releaseYear = releaseYearMatch ? releaseYearMatch[1] : '';
 
-            details.push({
-                description,
-                genres: genres.join(', '),
-                airdate: `Released: ${airdate}`
-            });
+  const durationMatch = html.match(/مده العرض\s*:\s*<\/span>\s*<strong>([^<]+)<\/strong>/);
+  result.duration = durationMatch ? durationMatch[1] : '';
 
-        } else if (url.includes('/anime/')) {
-            const descMatch = html.match(/<div class="media-story">[\s\S]*?<div class="content">\s*<p>(.*?)<\/p>/s);
-            const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : 'N/A';
+  const translationMatch = html.match(/الترجمة\s*:\s*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
+  result.translation = translationMatch ? translationMatch[1] : '';
 
-            const yearMatch = html.match(/<ul class="media-info">[\s\S]*?<li>سنة العرض\s*:\s*<span>([^<]+)<\/span>/);
-            const airdate = yearMatch ? yearMatch[1].trim() : 'Unknown';
+  const statusMatch = html.match(/حالة الانمي\s*:\s*<\/span>\s*<strong>([^<]+)<\/strong>/);
+  result.status = statusMatch ? statusMatch[1] : '';
 
-            const genres = [];
-            const genresBlockMatch = html.match(/<div class="genres">([\s\S]*?)<\/div>/);
-            if (genresBlockMatch) {
-                const genreLinks = genresBlockMatch[1].match(/<a[^>]*>([^<]+)<\/a>/g) || [];
-                genreLinks.forEach(link => {
-                    const g = link.match(/>([^<]+)</);
-                    if (g) genres.push(decodeHTMLEntities(g[1].trim()));
-                });
-            }
+  const studiosMatch = html.match(/الاستديوهات\s*:\s*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
+  result.studios = studiosMatch ? studiosMatch[1] : '';
 
-            details.push({
-                description,
-                genres: genres.join(', '),
-                airdate: `Aired: ${airdate}`
-            });
+  const seasonMatch = html.match(/الموسم\s*:\s*<\/span>\s*<a[^>]*>([^<]+)<\/a>/);
+  result.season = seasonMatch ? seasonMatch[1] : '';
 
-        } else {
-            throw new Error("URL does not match known anime or movie paths.");
-        }
-
-        return JSON.stringify(details);
-
-    } catch (error) {
-        return JSON.stringify([{
-            description: 'Error loading description',
-            genres: 'Unknown',
-            airdate: 'Unknown'
-        }]);
-    }
+  return result;
 }
 
 async function extractEpisodes(url) {
