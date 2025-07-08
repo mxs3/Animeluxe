@@ -11,7 +11,7 @@
     "quality": "Auto",
     "baseUrl": "https://www.zimabadk.com/",
     "searchBaseUrl": "https://www.zimabadk.com/search/%s/",
-    "scriptUrl": "https://raw.githubusercontent.com/mxs3/Zimabadk/refs/heads/main/zimabadk.js",
+    "scriptUrl": "https://raw.githubusercontent.com/mxs3/Zimabadk/main/zimabadk.js",
     "streamAsyncJS": true,
     "type": "anime"
 }
