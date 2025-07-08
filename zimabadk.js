@@ -1,26 +1,35 @@
 async function fetchAndSearch(keyword) {
-  const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}`;
-  const res = await soraFetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}&type=anime`;
+    try {
+        const response = await soraFetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+        const html = await response.text();
+        const results = searchResults(html);
+        console.log(results);
+        return JSON.stringify(results);
+    } catch (error) {
+        return JSON.stringify([]);
     }
-  });
-  const html = await res.text();
-  return searchResults(html);
 }
 
 function searchResults(html) {
-  const results = [];
-  const regex = /<div class="postBlockOne">.*?<a\s+class=".*?"\s+href="([^"]+)"[^>]*>.*?<div[^>]*class="poster"[^>]*>\s*<img[^>]*data-img="([^"]+)"[^>]*>.*?<h3[^>]*>(.*?)<\/h3>/gs;
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    results.push({
-      title: match[3].trim(),
-      image: match[2].trim(),
-      href: match[1].trim()
-    });
-  }
-  return results;
+    const results = [];
+    const regex = /<div class="postBlockOne">[\s\S]*?<a\s+class="[^"]*"\s+href="([^"]+)"\s+title="([^"]+)">[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
+    let match;
+    const titlesSet = new Set();
+    while ((match = regex.exec(html)) !== null) {
+        const href = match[1].trim();
+        const title = match[2].trim();
+        const image = match[3].trim();
+        if (!titlesSet.has(title)) {
+            results.push({ title, href, image });
+            titlesSet.add(title);
+        }
+    }
+    return results;
 }
 
 async function fetchDetails(url) {
