@@ -33,81 +33,112 @@ function searchResults(html) {
 }
 
 async function extractDetails(url) {
-  try {
-    const response = await fetchv2(url);
-    const html = await response.text();
+    try {
+        const response = await fetchv2(url);
+        const html = await response.text();
 
-    const details = {
-      description: 'N/A',
-      aliases: '',
-      airdate: 'Unknown'
-    };
+        const details = [];
 
-    const descriptionMatch = html.match(/<div class="content">\s*<p>(.*?)<\/p>\s*<\/div>/s);
-    if (descriptionMatch) {
-      details.description = decodeHTMLEntities(descriptionMatch[1].trim());
+        function decodeHTMLEntities(text) {
+            return text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
+                       .replace(/&amp;/g, '&')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&quot;/g, '"')
+                       .replace(/&apos;/g, "'");
+        }
+
+        if (url.includes('/movies/')) {
+            const descMatch = html.match(/<div class="content">\s*<p>(.*?)<\/p>/s);
+            const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : 'N/A';
+
+            const yearMatch = html.match(/<li>[^<]*سنة العرض[^<]*<\/li>\s*<span>([^<]+)<\/span>/);
+            const airdate = yearMatch ? yearMatch[1].trim() : 'Unknown';
+
+            const genres = [];
+            const genresBlockMatch = html.match(/<div class="genres">([\s\S]*?)<\/div>/);
+            if (genresBlockMatch) {
+                const genreLinks = genresBlockMatch[1].match(/<a[^>]*>([^<]+)<\/a>/g) || [];
+                genreLinks.forEach(link => {
+                    const g = link.match(/>([^<]+)</);
+                    if (g) genres.push(decodeHTMLEntities(g[1].trim()));
+                });
+            }
+
+            details.push({
+                description,
+                genres: genres.join(', '),
+                airdate: `Released: ${airdate}`
+            });
+
+        } else if (url.includes('/anime/')) {
+            const descMatch = html.match(/<div class="media-story">[\s\S]*?<div class="content">\s*<p>(.*?)<\/p>/s);
+            const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : 'N/A';
+
+            const yearMatch = html.match(/<ul class="media-info">[\s\S]*?<li>سنة العرض\s*:\s*<span>([^<]+)<\/span>/);
+            const airdate = yearMatch ? yearMatch[1].trim() : 'Unknown';
+
+            const genres = [];
+            const genresBlockMatch = html.match(/<div class="genres">([\s\S]*?)<\/div>/);
+            if (genresBlockMatch) {
+                const genreLinks = genresBlockMatch[1].match(/<a[^>]*>([^<]+)<\/a>/g) || [];
+                genreLinks.forEach(link => {
+                    const g = link.match(/>([^<]+)</);
+                    if (g) genres.push(decodeHTMLEntities(g[1].trim()));
+                });
+            }
+
+            details.push({
+                description,
+                genres: genres.join(', '),
+                airdate: `Aired: ${airdate}`
+            });
+
+        } else {
+            throw new Error("URL does not match known anime or movie paths.");
+        }
+
+        return JSON.stringify(details);
+
+    } catch (error) {
+        return JSON.stringify([{
+            description: 'Error loading description',
+            genres: 'Unknown',
+            airdate: 'Unknown'
+        }]);
     }
-
-    if (url.includes('movies')) {
-      const airdateMatch = html.match(/<li>\s*بداية العرض:\s*<span>\s*<a [^>]*rel="tag"[^>]*>([^<]+)<\/a>/);
-      if (airdateMatch) details.airdate = `Released: ${airdateMatch[1].trim()}`;
-    } else if (url.includes('animes')) {
-      const airdateMatch = html.match(/<li>\s*بداية العرض:\s*<a [^>]*rel="tag"[^>]*>([^<]+)<\/a>/);
-      if (airdateMatch) details.airdate = `Aired: ${airdateMatch[1].trim()}`;
-    } else {
-      throw new Error("URL does not match known anime or movie paths.");
-    }
-
-    const genres = [];
-    const genresMatch = html.match(/<div\s+class="genres">([\s\S]*?)<\/div>/);
-    if (genresMatch) {
-      const inner = genresMatch[1];
-      const anchorRe = /<a[^>]*>([^<]+)<\/a>/g;
-      let m;
-      while ((m = anchorRe.exec(inner)) !== null) {
-        genres.push(decodeHTMLEntities(m[1].trim()));
-      }
-      details.aliases = genres.join(', ');
-    }
-
-    return JSON.stringify([details]);
-
-  } catch (error) {
-    console.log('Details error:', error);
-    return JSON.stringify([{
-      description: 'Error loading description',
-      aliases: 'Aliases: Unknown',
-      airdate: 'Aired: Unknown'
-    }]);
-  }
 }
 
-function extractEpisodes(html) {
-  const episodeRegex = /<li>[\s\S]*?<a href="([^"]+)" class="title">[\s\S]*?<h3>([^<]+)<span>[^<]*<\/span><\/h3>[\s\S]*?<\/a>/g;
-  const episodes = [];
-  let match;
-  while ((match = episodeRegex.exec(html)) !== null) {
-    episodes.push({
-      url: match[1],
-      title: match[2].trim()
-    });
-  }
-  return episodes;
-}
+async function extractEpisodes(url) {
+    try {
+        const response = await fetchv2(url);
+        const html = typeof response === 'object' ? await response.text() : await response;
 
-async function fetchAnimeDetailsAndEpisodes(url) {
-  try {
-    const response = await fetch(url);
-    const html = await response.text();
+        const episodes = [];
 
-    const details = extractDetails(html);
-    const episodes = extractEpisodes(html);
+        if (url.includes('/movies/')) {
+            episodes.push({ number: 1, href: url });
+            return JSON.stringify(episodes);
+        }
 
-    return { details, episodes };
-  } catch (e) {
-    console.error("Failed fetching anime details and episodes:", e);
-    return { details: null, episodes: [] };
-  }
+        const liRegex = /<li>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*class="title"[^>]*>[\s\S]*?<h3>([^<]+)<\/h3>/g;
+        let match;
+        while ((match = liRegex.exec(html)) !== null) {
+            const href = match[1];
+            const title = match[2];
+            const numMatch = title.match(/(\d+)/);
+            const number = numMatch ? parseInt(numMatch[1]) : null;
+
+            if (number !== null) {
+                episodes.push({ number, href });
+            }
+        }
+
+        return JSON.stringify(episodes);
+
+    } catch (error) {
+        return JSON.stringify([]);
+    }
 }
 
 function decodeHTMLEntities(text) {
