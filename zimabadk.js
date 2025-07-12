@@ -103,20 +103,51 @@ function extractEpisodes(html) {
 
 async function extractStreamUrl(html) {
   try {
-    // أولاً نحاول نجيب من data-video-source (سيرفر zimabadk الأساسي)
+    let embedUrl = null;
+
     const sourceMatch = html.match(/data-video-source="([^"]+)"/);
-    if (sourceMatch && sourceMatch[1]) {
-      const url = sourceMatch[1].replace(/&amp;/g, "&");
-      return JSON.stringify({ streams: [{ quality: "Auto", url }] });
+    if (sourceMatch) {
+      embedUrl = sourceMatch[1].replace(/&amp;/g, '&');
+
+      const cinema = html.match(/cinema['"]\s*,\s*(\d+)/)?.[1];
+      const last = html.match(/last['"]\s*,\s*(\d+)/)?.[1];
+      if (cinema) embedUrl += `&cinema=${cinema}`;
+      if (last) embedUrl += `&last=${last}`;
     }
 
-    // لو مفهوش نرجع نجيب من iframe مباشرة
-    const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"/);
-    if (iframeMatch && iframeMatch[1]) {
-      return JSON.stringify({ streams: [{ quality: "Auto", url: iframeMatch[1] }] });
+    if (!embedUrl) {
+      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+sendvid\.com\/embed\/[^"]+)"/);
+      if (iframeMatch) {
+        return JSON.stringify({
+          streams: [{ quality: "Auto", url: iframeMatch[1] }]
+        });
+      }
+      return null;
     }
 
-    return null;
+    const res = await fetchv2(embedUrl);
+    const data = await res.text();
+
+    // نحاول JSON مباشرة أولاً
+    const jsonMatch = data.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
+    if (!jsonMatch) return null;
+
+    let qualities = [];
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      qualities = parsed.map(item => ({
+        quality: item.label,
+        url: item.src
+      }));
+    } catch {
+      const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
+      let m;
+      while ((m = regex.exec(jsonMatch[1])) !== null) {
+        qualities.push({ quality: m[2], url: m[1] });
+      }
+    }
+
+    return JSON.stringify({ streams: qualities });
   } catch (err) {
     return null;
   }
