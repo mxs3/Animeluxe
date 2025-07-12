@@ -17,8 +17,8 @@ async function fetchAndSearch(keyword) {
 function searchResults(html) {
   const results = [];
   const regex = /<div class="postBlockOne">[\s\S]*?<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"[^>]*>[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
-  let match;
   const seen = new Set();
+  let match;
 
   while ((match = regex.exec(html)) !== null) {
     const href = match[1].trim();
@@ -75,13 +75,13 @@ function extractDetails(html) {
 
 function extractEpisodes(html) {
   const episodes = [];
-  const regex = /<li[^>]*data-ep="(\d+)"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<span[^>]*>[^<]*<\/span>\s*<em[^>]*>([^<]+)<\/em>/g;
+  const regex = /<li[^>]*data-ep="(\d+)"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[\s\S]*?<em[^>]*>([^<]+)<\/em>/g;
   let match;
   while ((match = regex.exec(html)) !== null) {
     const epNum = match[3]?.trim();
     const href = match[2]?.trim();
     if (epNum && href) {
-      episodes.push({ number: epNum, href: href });
+      episodes.push({ number: epNum, href });
     }
   }
   return episodes;
@@ -89,21 +89,33 @@ function extractEpisodes(html) {
 
 async function extractStreamUrl(html) {
   try {
+    let embedUrl = null;
+
     const sourceMatch = html.match(/data-video-source="([^"]+)"/);
-    let embedUrl = sourceMatch?.[1]?.replace(/&amp;/g, '&');
-    if (!embedUrl) return null;
+    if (sourceMatch) {
+      embedUrl = sourceMatch[1].replace(/&amp;/g, '&');
 
-    const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
-    const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
-    const cinemaNum = cinemaMatch ? cinemaMatch[1] : undefined;
-    const lastNum = lastMatch ? lastMatch[1] : undefined;
+      const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
+      const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
 
-    if (cinemaNum) embedUrl += `&cinema=${cinemaNum}`;
-    if (lastNum) embedUrl += `&last=${lastNum}`;
+      if (cinemaMatch) embedUrl += `&cinema=${cinemaMatch[1]}`;
+      if (lastMatch) embedUrl += `&last=${lastMatch[1]}`;
+    }
+
+    // fallback to iframe src if data-video-source not found
+    if (!embedUrl) {
+      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+sendvid\.com\/embed\/[^"]+)"/);
+      if (iframeMatch) {
+        return JSON.stringify({
+          streams: [{ quality: "SD", url: iframeMatch[1] }]
+        });
+      } else {
+        return null;
+      }
+    }
 
     const response = await fetchv2(embedUrl);
     const data = await response.text();
-
     const qualities = extractQualities(data);
 
     const epMatch = html.match(/<title>[^<]*الحلقة\s*(\d+)[^<]*<\/title>/);
@@ -112,9 +124,7 @@ async function extractStreamUrl(html) {
     let nextEpNum, nextDuration, nextSubtitle;
     if (currentEp !== null) {
       const episodeRegex = new RegExp(
-        `<a[^>]+href="[^"]+/episode/[^/]+/(\\d+)"[\\s\\S]*?` +
-        `<span[^>]*>([^<]+)<\\/span>[\\s\\S]*?` +
-        `<p[^>]*>([^<]+)<\\/p>`,
+        `<a[^>]+href="[^"]+/episode/[^/]+/(\\d+)"[\\s\\S]*?<span[^>]*>([^<]+)<\\/span>[\\s\\S]*?<p[^>]*>([^<]+)<\\/p>`,
         'g'
       );
       let m;
@@ -141,25 +151,37 @@ async function extractStreamUrl(html) {
 }
 
 function extractQualities(html) {
-  const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-  if (!match) return [];
+  const jsonMatch = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
+  if (!jsonMatch) return [];
 
-  const raw = match[1];
-  const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-  const list = [];
-  let m;
+  try {
+    const data = JSON.parse(jsonMatch[1]);
+    return data.map(item => ({
+      quality: item.label,
+      url: item.src
+    }));
+  } catch {
+    // fallback regex
+    const raw = jsonMatch[1];
+    const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
+    const list = [];
+    let m;
 
-  while ((m = regex.exec(raw)) !== null) {
-    list.push({ quality: m[2], url: m[1] });
+    while ((m = regex.exec(raw)) !== null) {
+      list.push({ quality: m[2], url: m[1] });
+    }
+
+    return list;
   }
-
-  return list;
 }
 
-function decodeHTMLEntities(text) {
-  const txt = document.createElement('textarea');
-  txt.innerHTML = text;
-  return txt.value;
+function decodeHTMLEntities(str) {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }
 
 async function fetchv2(url, options = {}) {
