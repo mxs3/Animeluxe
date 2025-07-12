@@ -89,89 +89,48 @@ function extractEpisodes(html) {
 
 async function extractStreamUrl(html) {
   try {
-    let embedUrl = null;
+    let videos = [];
 
     const sourceMatch = html.match(/data-video-source="([^"]+)"/);
     if (sourceMatch) {
-      embedUrl = sourceMatch[1].replace(/&amp;/g, '&');
+      let videoSourceUrl = sourceMatch[1].replace(/&amp;/g, "&");
 
-      const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
-      const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
+      const res = await fetchv2(videoSourceUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+          'Referer': 'https://www.zimabadk.com/'
+        }
+      });
 
-      if (cinemaMatch) embedUrl += `&cinema=${cinemaMatch[1]}`;
-      if (lastMatch) embedUrl += `&last=${lastMatch[1]}`;
-    }
+      const data = await res.text();
+      const match = data.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
 
-    // fallback to iframe src if data-video-source not found
-    if (!embedUrl) {
-      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+sendvid\.com\/embed\/[^"]+)"/);
-      if (iframeMatch) {
-        return JSON.stringify({
-          streams: [{ quality: "SD", url: iframeMatch[1] }]
-        });
-      } else {
-        return null;
-      }
-    }
-
-    const response = await fetchv2(embedUrl);
-    const data = await response.text();
-    const qualities = extractQualities(data);
-
-    const epMatch = html.match(/<title>[^<]*الحلقة\s*(\d+)[^<]*<\/title>/);
-    const currentEp = epMatch ? Number(epMatch[1]) : null;
-
-    let nextEpNum, nextDuration, nextSubtitle;
-    if (currentEp !== null) {
-      const episodeRegex = new RegExp(
-        `<a[^>]+href="[^"]+/episode/[^/]+/(\\d+)"[\\s\\S]*?<span[^>]*>([^<]+)<\\/span>[\\s\\S]*?<p[^>]*>([^<]+)<\\/p>`,
-        'g'
-      );
-      let m;
-      while ((m = episodeRegex.exec(html)) !== null) {
-        const num = Number(m[1]);
-        if (num > currentEp) {
-          nextEpNum = num;
-          nextDuration = m[2].trim();
-          nextSubtitle = m[3].trim();
-          break;
+      if (match) {
+        try {
+          videos = JSON.parse(match[1]);
+        } catch {
+          const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
+          let m;
+          while ((m = regex.exec(match[1])) !== null) {
+            videos.push({ quality: m[2], url: m[1] });
+          }
         }
       }
     }
 
-    if (nextEpNum != null) {
-      embedUrl += `&next-title=${encodeURIComponent(nextDuration)}`;
-      embedUrl += `&next-sub-title=${encodeURIComponent(nextSubtitle)}`;
+    // fallback to iframe if Zimabadk stream not available
+    if (videos.length === 0) {
+      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"/);
+      if (iframeMatch && iframeMatch[1]) {
+        return JSON.stringify({
+          streams: [{ quality: "Auto", url: iframeMatch[1] }]
+        });
+      }
     }
 
-    return JSON.stringify({ streams: qualities });
+    return JSON.stringify({ streams: videos });
   } catch (err) {
     return null;
-  }
-}
-
-function extractQualities(html) {
-  const jsonMatch = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-  if (!jsonMatch) return [];
-
-  try {
-    const data = JSON.parse(jsonMatch[1]);
-    return data.map(item => ({
-      quality: item.label,
-      url: item.src
-    }));
-  } catch {
-    // fallback regex
-    const raw = jsonMatch[1];
-    const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-    const list = [];
-    let m;
-
-    while ((m = regex.exec(raw)) !== null) {
-      list.push({ quality: m[2], url: m[1] });
-    }
-
-    return list;
   }
 }
 
