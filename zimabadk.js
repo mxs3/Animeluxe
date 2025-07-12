@@ -105,50 +105,65 @@ async function extractStreamUrl(html) {
   try {
     let embedUrl = null;
 
+    // 1. استخراج رابط التشغيل من data-video-source
     const sourceMatch = html.match(/data-video-source="([^"]+)"/);
     if (sourceMatch) {
       embedUrl = sourceMatch[1].replace(/&amp;/g, '&');
 
-      const cinema = html.match(/cinema['"]\s*,\s*(\d+)/)?.[1];
-      const last = html.match(/last['"]\s*,\s*(\d+)/)?.[1];
-      if (cinema) embedUrl += `&cinema=${cinema}`;
-      if (last) embedUrl += `&last=${last}`;
+      // محاولة استخراج باراميترات إضافية (cinema، last)
+      const cinemaMatch = html.match(/url\.searchParams\.append\(['"]cinema['"]\s*,\s*(\d+)\)/);
+      const lastMatch = html.match(/url\.searchParams\.append\(['"]last['"]\s*,\s*(\d+)\)/);
+
+      if (cinemaMatch) embedUrl += `&cinema=${cinemaMatch[1]}`;
+      if (lastMatch) embedUrl += `&last=${lastMatch[1]}`;
     }
 
+    // 2. fallback: لو مفيش data-video-source، نحاول نجيب من iframe المباشر (مثلاً من megamax أو sendvid)
     if (!embedUrl) {
-      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+sendvid\.com\/embed\/[^"]+)"/);
-      if (iframeMatch) {
+      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"/);
+      if (iframeMatch && iframeMatch[1]) {
         return JSON.stringify({
           streams: [{ quality: "Auto", url: iframeMatch[1] }]
         });
+      } else {
+        console.warn("⚠️ لم يتم العثور على أي رابط تشغيل.");
+        return null;
       }
-      return null;
     }
 
-    const res = await fetchv2(embedUrl);
-    const data = await res.text();
+    // 3. طلب صفحة embed (رابط التشغيل) لجلب الجودات المتاحة إن وُجدت
+    const response = await fetchv2(embedUrl);
+    const data = await response.text();
 
-    // نحاول JSON مباشرة أولاً
+    // 4. محاولة استخراج JSON داخل JavaScript في صفحة embed
     const jsonMatch = data.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-    if (!jsonMatch) return null;
-
-    let qualities = [];
-    try {
-      const parsed = JSON.parse(jsonMatch[1]);
-      qualities = parsed.map(item => ({
-        quality: item.label,
-        url: item.src
-      }));
-    } catch {
-      const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-      let m;
-      while ((m = regex.exec(jsonMatch[1])) !== null) {
-        qualities.push({ quality: m[2], url: m[1] });
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[1]);
+        const streams = parsed.map(item => ({
+          quality: item.label,
+          url: item.src
+        }));
+        return JSON.stringify({ streams });
+      } catch {
+        // fallback: regex لو JSON.parse فشل
+        const fallbackList = [];
+        const fallbackRegex = /\{\s*src:\s*'([^']+)'\s*,\s*type:\s*'[^']*'\s*,\s*label:\s*'([^']*)'/g;
+        let m;
+        while ((m = fallbackRegex.exec(jsonMatch[1])) !== null) {
+          fallbackList.push({ quality: m[2], url: m[1] });
+        }
+        if (fallbackList.length > 0) return JSON.stringify({ streams: fallbackList });
       }
     }
 
-    return JSON.stringify({ streams: qualities });
+    // 5. fallback أخير: لو مفيش جودات، نرجع الرابط الأساسي Auto
+    return JSON.stringify({
+      streams: [{ quality: "Auto", url: embedUrl }]
+    });
+
   } catch (err) {
+    console.error("❌ Error in extractStreamUrl:", err);
     return null;
   }
 }
