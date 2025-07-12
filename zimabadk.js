@@ -2,9 +2,7 @@ async function fetchAndSearch(keyword) {
   const url = `https://www.zimabadk.com/?s=${encodeURIComponent(keyword)}&type=anime`;
   try {
     const response = await soraFetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
     const html = await response.text();
     const results = searchResults(html);
@@ -22,7 +20,8 @@ function searchResults(html) {
 
   while ((match = regex.exec(html)) !== null) {
     const href = match[1].trim();
-    const title = decodeHTMLEntities(match[2].trim());
+    const fullTitle = decodeHTMLEntities(match[2].trim());
+    const title = fullTitle.match(/[a-zA-Z0-9: \-]+/)?.[0]?.trim() || fullTitle;
     const image = match[3].trim();
 
     if (!seen.has(href)) {
@@ -68,9 +67,24 @@ function extractDetails(html) {
   }
   result.categories = categories;
 
-  result.episodes = extractEpisodes(html);
+  result.seasons = extractSeasons(html);
+  result.episodes = extractEpisodes(html); // دي مؤقتًا بتجيب اللي ظاهر فقط
 
   return result;
+}
+
+function extractSeasons(html) {
+  const seasons = [];
+  const regex = /<li>\s*<a href="([^"]+)">\s*([^<]+)\s*<\/a>/g;
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    const href = match[1].trim();
+    const title = decodeHTMLEntities(match[2].trim());
+    seasons.push({ title, href });
+  }
+
+  return seasons;
 }
 
 function extractEpisodes(html) {
@@ -89,46 +103,20 @@ function extractEpisodes(html) {
 
 async function extractStreamUrl(html) {
   try {
-    let videos = [];
-
+    // أولاً نحاول نجيب من data-video-source (سيرفر zimabadk الأساسي)
     const sourceMatch = html.match(/data-video-source="([^"]+)"/);
-    if (sourceMatch) {
-      let videoSourceUrl = sourceMatch[1].replace(/&amp;/g, "&");
-
-      const res = await fetchv2(videoSourceUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': 'https://www.zimabadk.com/'
-        }
-      });
-
-      const data = await res.text();
-      const match = data.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-
-      if (match) {
-        try {
-          videos = JSON.parse(match[1]);
-        } catch {
-          const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-          let m;
-          while ((m = regex.exec(match[1])) !== null) {
-            videos.push({ quality: m[2], url: m[1] });
-          }
-        }
-      }
+    if (sourceMatch && sourceMatch[1]) {
+      const url = sourceMatch[1].replace(/&amp;/g, "&");
+      return JSON.stringify({ streams: [{ quality: "Auto", url }] });
     }
 
-    // fallback to iframe if Zimabadk stream not available
-    if (videos.length === 0) {
-      const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"/);
-      if (iframeMatch && iframeMatch[1]) {
-        return JSON.stringify({
-          streams: [{ quality: "Auto", url: iframeMatch[1] }]
-        });
-      }
+    // لو مفهوش نرجع نجيب من iframe مباشرة
+    const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"/);
+    if (iframeMatch && iframeMatch[1]) {
+      return JSON.stringify({ streams: [{ quality: "Auto", url: iframeMatch[1] }] });
     }
 
-    return JSON.stringify({ streams: videos });
+    return null;
   } catch (err) {
     return null;
   }
