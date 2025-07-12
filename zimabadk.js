@@ -7,7 +7,7 @@ async function fetchAndSearch(keyword) {
     const html = await response.text();
     const results = searchResults(html);
     return JSON.stringify(results);
-  } catch {
+  } catch (error) {
     return JSON.stringify([]);
   }
 }
@@ -15,13 +15,15 @@ async function fetchAndSearch(keyword) {
 function searchResults(html) {
   const results = [];
   const regex = /<div class="postBlockOne">[\s\S]*?<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"[^>]*>[\s\S]*?<img[^>]+data-img="([^"]+)"/g;
-  let match;
   const seen = new Set();
+  let match;
 
   while ((match = regex.exec(html)) !== null) {
     const href = match[1].trim();
-    const title = decodeHTMLEntities(match[2].trim());
+    const fullTitle = decodeHTMLEntities(match[2].trim());
+    const title = fullTitle.match(/[a-zA-Z0-9: \-]+/)?.[0]?.trim() || fullTitle;
     const image = match[3].trim();
+
     if (!seen.has(href)) {
       results.push({ title, href, image });
       seen.add(href);
@@ -31,65 +33,69 @@ function searchResults(html) {
   return results;
 }
 
-async function extractDetails(html, currentUrl) {
+function extractDetails(html) {
   const result = {};
-
-  const titleMatch = html.match(/<title>(.*?)<\/title>/);
-  result.title = titleMatch ? decodeHTMLEntities(titleMatch[1].replace(/[\|\-–].*$/, '').trim()) : '';
 
   const storyMatch = html.match(/<div class="story">\s*<p>([\s\S]*?)<\/p>/);
   result.description = storyMatch ? decodeHTMLEntities(storyMatch[1].trim()) : '';
 
-  const imageMatch = html.match(/<img[^>]+src="([^"]+)"[^>]*class="[^"]*cover[^"]*"/);
-  result.image = imageMatch ? imageMatch[1] : '';
+  const releaseYearMatch = html.match(/سنة الاصدار\s*:\s*<\/span>\s*<a[^>]*>(\d{4})<\/a>/);
+  result.releaseYear = releaseYearMatch ? releaseYearMatch[1].trim() : '';
 
-  const seasons = [];
-  const seasonsList = html.match(/<div class="seasonsList">[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>/);
-  if (seasonsList) {
-    const seasonRegex = /<a\s+href="([^"]+)">([^<]+)<\/a>/g;
-    let seasonMatch;
-    while ((seasonMatch = seasonRegex.exec(seasonsList[1])) !== null) {
-      seasons.push({
-        name: decodeHTMLEntities(seasonMatch[2].trim()),
-        href: seasonMatch[1].trim()
-      });
+  const airedDateMatch = html.match(/بدأ عرضه من\s*:\s*<\/span>\s*<strong>([^<]+)<\/strong>/);
+  result.airedDate = airedDateMatch ? airedDateMatch[1].trim() : '';
+
+  const genres = [];
+  const genresBlockMatch = html.match(/الانواع\s*:\s*<\/span>([\s\S]*?)<\/li>/);
+  if (genresBlockMatch) {
+    const genreRegex = /<a[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = genreRegex.exec(genresBlockMatch[1])) !== null) {
+      genres.push(decodeHTMLEntities(m[1].trim()));
     }
   }
+  result.genres = genres;
 
-  if (seasons.length === 0) {
-    seasons.push({ name: 'الموسم الوحيد', href: currentUrl });
-  }
-
-  result.seasons = [];
-
-  for (let season of seasons) {
-    try {
-      const res = await soraFetch(season.href, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
-      const seasonHtml = await res.text();
-      const episodes = extractEpisodes(seasonHtml);
-      result.seasons.push({
-        season: season.name,
-        episodes: episodes
-      });
-    } catch (err) {
-      console.error('Season fetch failed:', season.href);
+  const categories = [];
+  const categoriesBlockMatch = html.match(/التصنيفات\s*:\s*<\/span>([\s\S]*?)<\/li>/);
+  if (categoriesBlockMatch) {
+    const catRegex = /<a[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = catRegex.exec(categoriesBlockMatch[1])) !== null) {
+      categories.push(decodeHTMLEntities(m[1].trim()));
     }
   }
+  result.categories = categories;
+
+  result.seasons = extractSeasons(html);
+  result.episodes = extractEpisodes(html); // دي مؤقتًا بتجيب اللي ظاهر فقط
 
   return result;
 }
 
+function extractSeasons(html) {
+  const seasons = [];
+  const regex = /<li>\s*<a href="([^"]+)">\s*([^<]+)\s*<\/a>/g;
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    const href = match[1].trim();
+    const title = decodeHTMLEntities(match[2].trim());
+    seasons.push({ title, href });
+  }
+
+  return seasons;
+}
+
 function extractEpisodes(html) {
   const episodes = [];
-  const regex = /<li[^>]*data-ep="(\d+)"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<span[^>]*>[^<]*<\/span>\s*<em[^>]*>([^<]+)<\/em>/g;
+  const regex = /<li[^>]*data-ep="(\d+)"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[\s\S]*?<em[^>]*>([^<]+)<\/em>/g;
   let match;
   while ((match = regex.exec(html)) !== null) {
     const epNum = match[3]?.trim();
     const href = match[2]?.trim();
     if (epNum && href) {
-      episodes.push({ number: epNum, href: href });
+      episodes.push({ number: epNum, href });
     }
   }
   return episodes;
@@ -97,18 +103,17 @@ function extractEpisodes(html) {
 
 async function extractStreamUrl(html) {
   try {
-    const iframeMatch = html.match(/<div class="postEmbed">[\s\S]*?<iframe[^>]+src="([^"]+)"/);
-    if (iframeMatch && iframeMatch[1]) {
-      return JSON.stringify({
-        streams: [{ url: iframeMatch[1] }]
-      });
+    // أولاً نحاول نجيب من data-video-source (سيرفر zimabadk الأساسي)
+    const sourceMatch = html.match(/data-video-source="([^"]+)"/);
+    if (sourceMatch && sourceMatch[1]) {
+      const url = sourceMatch[1].replace(/&amp;/g, "&");
+      return JSON.stringify({ streams: [{ quality: "Auto", url }] });
     }
 
-    const fallbackIframe = html.match(/<iframe[^>]+src="([^"]+)"/);
-    if (fallbackIframe && fallbackIframe[1]) {
-      return JSON.stringify({
-        streams: [{ url: fallbackIframe[1] }]
-      });
+    // لو مفهوش نرجع نجيب من iframe مباشرة
+    const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"/);
+    if (iframeMatch && iframeMatch[1]) {
+      return JSON.stringify({ streams: [{ quality: "Auto", url: iframeMatch[1] }] });
     }
 
     return null;
@@ -117,9 +122,15 @@ async function extractStreamUrl(html) {
   }
 }
 
-function decodeHTMLEntities(text) {
-  const txt = typeof document !== 'undefined' ? document.createElement('textarea') : null;
-  if (!txt) return text;
-  txt.innerHTML = text;
-  return txt.value;
+function decodeHTMLEntities(str) {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+async function fetchv2(url, options = {}) {
+  return await fetch(url, options);
 }
